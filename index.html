@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<!-- saved from url=(0033)https://QicongXie.github.io/end2endvc/ -->
+<html lang="en-US">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+  <!-- Begin Jekyll SEO tag v2.7.1 -->
+  <title>SoulX-Podcast: Towards Realistic Long-form Podcasts with Dialectal and Paralinguistic Diversity</title>
+  <meta name="generator" content="Jekyll v3.9.0">
+  <meta property="og:title" content="TODO: title">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <!-- End Jekyll SEO tag -->
+
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#157878">
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body data-new-gr-c-s-check-loaded="14.1001.0" data-gr-ext-installed="">
+  <section class="page-header">
+    <!-- <h1 class="project-name">Demo PAGE</h1> -->
+    <!-- <h2 class="project-tagline"></h2> -->
+  </section>
+
+  <section class="main-content">
+    <!-- <h3 id="">
+      <center>📢: The latest AI podcast tool is here! Soul AI Lab open-sources the SOTA Text To Speech model SoulX-Podcast. <a href="https://github.com/Soul-AILab/SoulX-Podcast">WenetSpeech-Yue</a></center>
+    </h3> -->
+    
+    <h4 id="broadcast" style="margin: 1em 0; overflow: hidden; white-space: nowrap;">
+      <div class="marquee-container">
+        <!-- 核心修复：在 "at" 后添加空格，再衔接超链接 -->
+        <div class="marquee-content">
+          📢: The latest AI podcast tool is here! Soul AI Lab open-sources the SOTA Text To Speech model SoulX-Podcast.&nbsp;
+          <a href="https://github.com/Soul-AILab/SoulX-Podcast" target="_blank" onmouseover="stopMarquee()" onmouseout="startMarquee()"> WenetSpeech-Yue</a>
+          <!-- 用足够空格分隔重复内容，确保无缝衔接不拥挤 -->
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          📢: The latest AI podcast tool is here! Soul AI Lab open-sources the SOTA Text To Speech model SoulX-Podcast.&nbsp;
+          <a href="https://github.com/Soul-AILab/SoulX-Podcast" target="_blank" onmouseover="stopMarquee()" onmouseout="startMarquee()"> WenetSpeech-Yue</a>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          📢: The latest AI podcast tool is here! Soul AI Lab open-sources the SOTA Text To Speech model SoulX-Podcast.&nbsp;
+          <a href="https://github.com/Soul-AILab/SoulX-Podcast" target="_blank" onmouseover="stopMarquee()" onmouseout="startMarquee()"> WenetSpeech-Yue</a>
+        </div>
+      </div>
+    </h4>
+    
+    <style>
+    .marquee-container {
+      display: flex;
+      width: 100%;
+      overflow: hidden;
+    }
+    /* 滚动速度调慢（80秒/轮，数值越大越慢），保留无限循环 */
+    .marquee-content {
+      display: flex;
+      animation: marquee 80s linear infinite;
+      will-change: transform; /* 提升动画流畅度 */
+    }
+    @keyframes marquee {
+      0% { transform: translateX(100%); } /* 从右侧完全进入 */
+      100% { transform: translateX(-100%); } /* 从左侧完全退出，无缝衔接 */
+    }
+    /* 可选：给链接加 hover 样式，提示可交互 */
+    .marquee-content a {
+      color: #2563eb; /* 链接蓝色，适配多数页面风格 */
+      text-decoration: underline;
+      margin: 0 2px; /* 避免链接与前后文本贴太近 */
+    }
+    </style>
+    
+    <script>
+    // 精准控制动画暂停/播放（只针对滚动内容，不影响其他元素）
+    function stopMarquee() {
+      document.querySelector('.marquee-content').style.animationPlayState = 'paused';
+    }
+    function startMarquee() {
+      document.querySelector('.marquee-content').style.animationPlayState = 'running';
+    }
+    </script>
+    
+    <h1 id="">
+      <center>SoulX-Podcast: Towards Realistic Long-form Podcasts with Dialectal and Paralinguistic Diversity</center>
+    </h1>
+  
+    <div style="text-align:center; line-height:1.6; font-family:Arial, sans-serif;">
+    <p align="center">
+      Hanke Xie<sup>1,2</sup><sup>,*</sup>, Haopeng Lin<sup>2</sup><sup>,*</sup>, Wenxiao Cao<sup>2</sup>, Jun Wu<sup>2</sup>, 
+      Hanlin Wen<sup>2</sup>, Ruixuan Shang<sup>2</sup>, Hongmei Liu<sup>2</sup>, Wenxi Chen<sup>2</sup>, 
+      Ruiqi Yan<sup>2</sup>, Jiale Qian<sup>2</sup>, Shunshun Yin<sup>2</sup>, Ming Tao<sup>2</sup>, 
+      Lei Xie<sup>1</sup><sup>,╀</sup>, Xinsheng Wang<sup>2</sup><sup>,†</sup>
+    </p>
+    <p align="center">
+      <sup>1</sup> Audio, Speech and Language Processing Group (ASLP@NPU), Northwestern Polytechnical University, Xi’an, China <br>
+      <sup>2</sup> Soul AI Lab, China <br>
+    </p>
+      
+  </div>
+
+
+    <p align="center">
+    📑 <a href="https://arxiv.org/abs/2509.18004">Paper</a> &nbsp&nbsp | &nbsp&nbsp 
+    🐙 <a href="https://github.com/ASLP-lab/WenetSpeech-Chuan">GitHub</a> &nbsp&nbsp | &nbsp&nbsp 
+    🤗 <a href="https://huggingface.co/collections/Soul-AILab/soulx-podcast-68f84d5278e9706f1eb7aadd">HuggingFace</a>
+    <br>
+    <!-- 🖥️ <a href="https://huggingface.co/spaces/ASLP-lab/WenetSpeech-Yue">HuggingFace Space</a> &nbsp&nbsp | &nbsp&nbsp  -->
+    🎤 <a href="https://github.com/ASLP-lab/WenetSpeech-Chuan/blob/demopage/index.html">Demo Page</a> &nbsp&nbsp | &nbsp&nbsp 
+    💬 <a href="https://github.com/ASLP-lab/WenetSpeech-Chuan?tab=readme-ov-file#contact">Contact Us</a>
+    </p>
+
+    <!-- 导航栏：居中、自适应宽度、半透明 + 跟随页面移动 -->
+    <div style="text-align:center; margin-top:10px; position: sticky; top: 10px; z-index: 1000;">
+      <nav style="
+        background: rgba(0, 0, 0, 0.5);
+        padding: 12px 24px;
+        display: inline-block;      /* 宽度随内容 */
+        border-radius: 10px;
+        backdrop-filter: blur(6px); /* 毛玻璃，支持的浏览器会更好看 */
+      ">
+        <a href="#abstract" class="nav-link">Abstract</a>
+        <a href="#video" class="nav-link">Promotional Video</a>
+        <a href="#pipeline" class="nav-link">Chuan-Pipeline</a>
+        <a href="#dataset" class="nav-link">WenetSpeech-Chuan</a>
+        <a href="#asr" class="nav-link">ASR Leaderboard</a>
+        <a href="#tts" class="nav-link">TTS Evaluation</a>
+        <a href="#tts_demo" class="nav-link">TTS Demo</a>
+      </nav>
+    </div>
+    
+    <style>
+      /* 链接样式：保持原字号，hover 变蓝+下划线 */
+      .nav-link {
+        color: white;
+        margin: 0 15px;
+        text-decoration: none;
+        font-size: 16px;             /* 你原来的大小 */
+        transition: color 0.2s, text-decoration 0.2s;
+      }
+      .nav-link:hover {
+        color: #66ccff;              /* 浅蓝色 hover */
+        text-decoration: underline;
+      }
+    </style>
+
+
+    <h2 id="abstract" style="text-align: center;">Abstract<a name="abstract"></a></h2>
+    <p style="text-align: justify;">Recent advances in text-to-speech (TTS) synthesis have significantly improved speech expressiveness and naturalness. However, most existing systems are tailored for single-speaker synthesis and fall short in generating coherent multi-speaker conversational speech. This technical report presents SoulX-Podcast, a system designed for multi-turn, multi-speaker conversational speech generation while simultaneously achieving state-of-the-art performance in conventional TTS tasks.To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podcast integrates a range of paralinguistic controls and supports both Mandarin and English, as well as several Chinese dialects, including Sichuanese, Henanese, and Cantonese, enabling more personalized podcast-style speech generation. Experimental results demonstrate that SoulX-Podcast can continuously produce over 90 minutes of conversation with stable speaker timbre and smooth speaker transitions. Moreover, speakers exhibit contextually adaptive prosody, reflecting natural rhythm and intonation changes as dialogues progress. Across multiple evaluation metrics, SoulX-Podcast achieves state-of-the-art performance in both single-speaker TTS and multi-turn conversational speech synthesis.</p>
+
+
+    <h2 id="video" style="text-align:center;">Promotional video</h2>
+    
+    <div style="display:flex; justify-content:center; gap:40px; margin-top:20px; flex-wrap:wrap;">
+      <div style="text-align:center; max-width:900px; width:100%;">
+        <!-- <h3>Sichuanese</h3> -->
+        <div style="position:relative; width:100%; max-width:900px; aspect-ratio:16/9; background:#000;">
+        <iframe 
+          width="100%" 
+          height="100%" 
+          src="raw/video/demo_video.mp4" 
+          frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen
+          style="position:absolute; inset:0;"
+        ></iframe>
+        </div>
+      </div>
+    
+      <!-- <div style="text-align:center; max-width:600px; width:100%;">
+        <h3>English</h3>
+        <div style="position:relative; width:100%; max-width:600px; aspect-ratio:16/9; background:#000;">
+        <iframe 
+          width="100%" 
+          height="100%" 
+          src="https://www.youtube.com/embed/lJwvg5RCNRc?autoplay=0" 
+          frameborder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen
+          style="position:absolute; inset:0;"
+        ></iframe>
+        </div>
+      </div> -->
+    </div>
+
+
+    <h2 id="pipeline" style="text-align: center;">SoulX-Data-Pipeline<a name="pipeline"></a></h2>
+    <p style="text-align: justify;">Chuan-Pipeline is an automated pipeline specifically designed for building large-scale Cantonese datasets with multi-dimensional annotation. It consists of six components: (A) Audio Collection, (B) Speaker Attributes Annotation, (C) Speech Quality Annotation, (D) Automatic Speech Recognition, (E) Text Post-Processing, and (F) Recognizer Output Voting. The figure below provides an overview of the Chuan-Pipeline.</p>
+
+
+    
+    <!-- <div style="text-align:center;">
+      <img src="src/figs/Chuan-Pipeline.png" alt="Chuan-Pipeline">
+    </div> -->
+    <div style="text-align:center;">
+      <img src="src/figs/Chuan-Pipeline.png" alt="Chuan-Pipeline" style="width:80%; height:auto;">
+    </div>
+    
+
+    <h2 id="dataset" style="text-align: center;">WenetSpeech-Chuan<a name="dataset"></a></h2>
+    <!-- <ul style="text-align: justify;"> -->
+    <h3 style="text-align: center;">Dataset Overview<a name="overview"></a></h3>
+      <li>Contains 10,000 hours of large-scale Chuan-Yu dialect speech corpus with rich annotations, the largest open-source resource for Chuan-Yu dialect speech research.</li>
+      <li>Stores metadata in a single JSON file, including audio path, duration, text confidence, speaker identity, SNR, DNSMOS, age, gender, and character-level timestamps. Additional metadata tags may be added in the future.</li>
+      <li>Covers ten domains: Short videos, Entertainment, Live streams, Documentary, Audiobook, Drama, Interview, News and others.</li>
+    </ul>
+    <div style="text-align:center;">
+      <img src="src/figs/quality_distribution.jpg" alt="quality_distribution" width="600">
+    </div>
+
+    <h3 style="text-align: center;">Data Samples<a name="data_samples"></a></h3>
+      <table style="text-align: center; width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="width: 10%; max-width: 120px;">Domain</th>
+              <th style="width: 45%; max-width: 600px;">Sample 1</th>
+              <th style="width: 45%; max-width: 600px;">Sample 2</th>
+            </tr>
+          </thead>
+        <tbody>
+      
+          <tr>
+            <td>Short Videos</td>
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/001.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                来，哥哥再给你唱首歌。好儿，哎呦，把伴奏给我放起来，放就放嘛，还要躲人家钩子。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9792
+              </small>
+              <br>
+            
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Happiness |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Middle Age
+              </small>
+              <br>
+            
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 2.76 |
+                <b>SNR:</b> 13.12 dB
+              </small> -->
+            </td>
+
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/002.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                对不起，只有二娃才能让我真正体会作为女人的快乐。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9545
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Sadness |
+                <b>Gender:</b> Female |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.87 |
+                <b>SNR:</b> 48.8 dB
+              </small> -->
+            </td>
+
+          </tr>
+      
+          <tr>
+            <td>Live Stream</td>
+              <td>
+                <!-- 音频播放器 -->
+                <audio controls src="raw/samples/003.wav"></audio>
+                <br>
+              
+                <!-- 转写文本 -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                  我想去逛街，欢迎进入直播间，晚上好，那我的名字是怎么说的呢？
+                </small>
+                <br>
+              
+                <!-- 置信度 -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Confidence:</b> 1.0000
+                </small>
+                <br>
+              
+                <!-- 说话人属性（合并一行） -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Emotion:</b> Happiness |
+                  <b>Gender:</b> Female |
+                  <b>Age:</b> Youth
+                </small>
+                <br>
+              
+                <!-- 音质指标（合并一行） -->
+                <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Sampling rate:</b> 16kHz |
+                  <b>DNSMOS:</b> 3.88 |
+                  <b>SNR:</b> 22.9 dB
+                </small> -->
+              </td>
+
+              <td>
+                <!-- 音频播放器 -->
+                <audio controls src="raw/samples/004.wav"></audio>
+                <br>
+              
+                <!-- 转写文本 -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  梦见的就是你，不行啊，有四川话根本唱不起来，根本唱不起来呀！
+                </small>
+                <br>
+              
+                <!-- 置信度 -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Confidence:</b> 0.9103
+                </small>
+                <br>
+              
+                <!-- 说话人属性（合并一行） -->
+                <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Emotion:</b> Happiness |
+                  <b>Gender:</b> Female |
+                  <b>Age:</b> Youth
+                </small>
+                <br>
+              
+                <!-- 音质指标（合并一行） -->
+                <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                  <b>Sampling rate:</b> 16kHz |
+                  <b>DNSMOS:</b> 3.38 |
+                  <b>SNR:</b> 19.8 dB -->
+                <!-- </small> -->
+              </td>
+
+          </tr>
+      
+          <tr>
+            <td>Drama</td>
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/005.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                就临走那天挑了个飘了一下嗨呀，弟弟灵魂儿就飞上九霄云，就飘着一下魂都飞了，对不对？
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9369
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Surprise |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Middle Age
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.85 |
+                <b>SNR:</b> 72.7 dB
+              </small> -->
+            </td>
+
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/006.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                是不是给人感觉后头是青花亮色的然后说话是很平和的眼神是不慌乱的不散的。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9608
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Anger |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Old
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.83 |
+                <b>SNR:</b> 65.6 dB
+              </small> -->
+            </td>
+
+          </tr>
+      
+          <tr>
+            <td>Documentary</td>
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/007.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                他坐在椅子上，挺直起腰杆，脸上展现出灿烂的笑容。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9841
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Middle Age
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.52 |
+                <b>SNR:</b> 6.18 dB
+              </small> -->
+            </td>
+
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/008.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                唤起路由无限的感慨，使他，更加痛恨官场的欺诈污浊。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9091
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Sadness |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Middle Age
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 2.95 |
+                <b>SNR:</b> 25.4 dB
+              </small> -->
+            </td>
+
+          </tr>
+      
+          <tr>
+            <td>Audio book</td>
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/009.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                看面貌约五十左右却自称活了两百多岁，在清顺治时出家当过和尚，还有杜蝶为证。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.9608
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Female |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 2.86 |
+                <b>SNR:</b> 15.1 dB
+              </small> -->
+            </td>
+
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/010.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                其言曰，士大夫以其见闻之广反各有所偏，自有负担杀者有负良骑者。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Confidence:</b> 0.938
+              </small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Female |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 2.76 |
+                <b>SNR:</b> 15.3 dB
+              </small> -->
+            </td>
+
+          </tr>
+          
+          <tr>
+          <td>News</td>
+            <td style="text-align:center; vertical-align:middle;">
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/011.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small>据说有网友坐飞机的时候呢，广播全程播报。</small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small><b>Confidence:</b> 1.0000</small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small>
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small>
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.74 |
+                <b>SNR:</b> 70.6 dB
+              </small> -->
+            </td>
+            <td style="text-align:center; vertical-align:middle;">
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/012.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                将溃疡两周以上都应该及时就医，据了解啊小云平时呢都喜欢吃比较烫的饭菜，也喜欢吃麻辣烫火锅之类的高温食物。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small><b>Confidence:</b> 0.9932 </small>
+              <br>
+            
+              <!-- 说话人属性 -->
+              <small>
+                <b>Emotion:</b> Happiness |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标 -->
+              <!-- <small>
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.56 |
+                <b>SNR:</b> 49.9 dB
+              </small> -->
+            </td>
+
+
+
+          </tr>
+          <tr>
+            <td>Entertainment</td>
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/013.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+                绝佳好位置好像我被看到了，就问你敢不敢进来吧你，一套带走猪脚亮。
+              </small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small><b>Confidence:</b> 0.987</small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small>
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Female |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small>
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 3.41 |
+                <b>SNR:</b> 17.9 dB
+              </small> -->
+            </td>
+
+            <td>
+              <!-- 音频播放器 -->
+              <audio controls src="raw/samples/014.wav"></audio>
+              <br>
+            
+              <!-- 转写文本 -->
+              <small>两岸猿声啼不住，有家难回车里住。</small>
+              <br>
+            
+              <!-- 置信度 -->
+              <small><b>Confidence:</b> 0.962</small>
+              <br>
+            
+              <!-- 说话人属性（合并一行） -->
+              <small>
+                <b>Emotion:</b> Neutral |
+                <b>Gender:</b> Male |
+                <b>Age:</b> Youth
+              </small>
+              <br>
+            
+              <!-- 音质指标（合并一行） -->
+              <!-- <small>
+                <b>Sampling rate:</b> 16kHz |
+                <b>DNSMOS:</b> 2.99 |
+                <b>SNR:</b> 24.4 dB
+              </small> -->
+            </td>
+
+          </tr>
+          <tr>
+            <td>Reading</td>
+          <td>
+          <!-- 音频播放器 -->
+          <audio controls src="raw/samples/015.wav"></audio>
+          <br>
+        
+          <!-- 转写文本 -->
+          <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+            杨大人一律就退还会再要求，以关注货币，来补助这个差额，天宝年间杨胜坚转任。
+          </small>
+          <br>
+        
+          <!-- 置信度 -->
+          <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+            <b>Confidence:</b> 0.9091
+          </small>
+          <br>
+        
+          <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+            <b>Emotion:</b> Anger |
+            <b>Gender:</b> Male |
+            <b>Age:</b> Middle Age
+          </small>
+          <br>
+        
+          <!-- 音质指标（合并一行） -->
+          <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+            <b>Sampling rate:</b> 16kHz |
+            <b>DNSMOS:</b> 3.71 |
+            <b>SNR:</b> 69.9 dB
+          </small> -->
+        </td>
+
+        <td>
+        <!-- 音频播放器 -->
+        <audio controls src="raw/samples/016.wav"></audio>
+        <br>
+      
+        <!-- 转写文本 -->
+        <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:center;">
+          做钱的速度还快，这真的是，一个经济爆发式增长的时代。
+        </small>
+        <br>
+      
+        <!-- 置信度 -->
+        <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+          <b>Confidence:</b> 0.9565
+        </small>
+        <br>
+      
+        <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+          <b>Emotion:</b> Surprise |
+          <b>Gender:</b> Male |
+          <b>Age:</b> Youth
+        </small>
+        <br>
+      
+        <!-- 音质指标（合并一行） -->
+        <!-- <small style="display:inline-block; max-width:600px; white-space:normal; word-break:break-all; text-align:left;">
+          <b>Sampling rate:</b> 16kHz |
+          <b>DNSMOS:</b> 2.90 |
+          <b>SNR:</b> 22.1 dB
+        </small> -->
+      </td>
+      
+        </tbody>
+      </table>
+
+    <h2 id="asr" style="text-align: center;">ASR Leaderboard<a name="Comparison"></a></h2>
+    <h4>Leaderboard shows ASR Results (CER%↓) on Sichuanese Datasets.</h4>
+    <p><em>Note: <strong>Bold</strong> indicates best performance, <u>underlined</u> indicates second-best performance, and <span style="background-color: #d4edda; padding: 0 2px;">light green background</span> indicates models finetuned on a high-quality internal corpus (to show the system's potential as a foundation model).</em></p>
+    
+      <table style="margin:0 auto; border-collapse: collapse; text-align:center;">
+        <tr>
+          <th align="left" rowspan="2">Model</th>
+          <th align="center" rowspan="2">Model Size</th>
+          <th align="center" colspan="3">WSC-Eval-ASR</th>
+          <th align="center" colspan="2">Magicdata</th>
+          <th align="center" rowspan="2">Avg.</th>
+        </tr>
+        <tr>
+          <th align="center">Easy</th>
+          <th align="center">Hard</th>
+          <th align="center">Total</th>
+          <th align="center">Conversation</th>
+          <th align="center">Daily-Use</th>
+        </tr>
+      
+        <tr><td align="left" colspan="8"><b>with LLM</b></td></tr>
+        <tr>
+          <td align="left">Kimi-Audio<sup></sup></td><td>7B</td><td>16.65</td><td>28.66</td><td>17.66</td><td>24.67</td><td><b>5.77</b></td><td>18.68</td>
+        </tr>
+        <tr>
+          <td align="left">FireRedASR-LLM<sup></sup></td><td>8.3B</td><td>12.80</td><td>25.27</td><td>14.40</td><td>17.68</td><td>6.69</td><td>15.37</td>
+        </tr>
+        <tr>
+          <td align="left">Qwen2.5-omni<sup></sup></td><td>3B</td><td>16.94</td><td>26.01</td><td>18.20</td><td>20.40</td><td>6.32</td><td>17.69</td>
+        </tr>
+        <tr>
+          <td align="left">Qwen2.5-omni-WSC-Finetune⭐</td><td>3B</td><td>14.36</td><td>24.14</td><td>15.61</td><td>18.45</td><td>6.15</td><td>15.74</td>
+        </tr>
+        <tr>
+          <td align="left"><span style="background-color: #d4edda;">Qwen2.5-omni+internal data⭐</span></td><td>3B</td><td>13.17</td><td>23.36</td><td>14.81</td><td>18.50</td><td>5.88</td><td>15.14</td>
+        </tr>
+        <tr>
+          <td align="left"><span style="background-color: #d4edda;">Qwen2.5-omni-WSC-Finetune + internal data⭐</span></td><td>3B</td><td>12.93</td><td>23.19</td><td>14.25</td><td>17.95</td><td><u>5.89</u></td><td>14.84</td>
+        </tr>
+      
+        <tr><td align="left" colspan="8"><b>without LLM</b></td></tr>
+        <tr>
+          <td align="left">SenseVoice-small<sup></sup></td><td>234M</td><td>17.43</td><td>28.38</td><td>18.39</td><td>23.50</td><td>8.77</td><td>19.29</td>
+        </tr>
+        <tr>
+          <td align="left">Whisper<sup></sup></td><td>244M</td><td>52.06</td><td>63.99</td><td>53.59</td><td>55.88</td><td>52.03</td><td>55.51</td>
+        </tr>
+        <tr>
+          <td align="left">FireRedASR-AED<sup></sup></td><td>1.1B</td><td>13.29</td><td>23.64</td><td>14.62</td><td>17.84</td><td>6.69</td><td>15.14</td>
+        </tr>
+        <tr>
+          <td align="left">Paraformer<sup></sup></td><td>220M</td><td>14.34</td><td>24.61</td><td>15.66</td><td>19.81</td><td>8.16</td><td>16.52</td>
+        </tr>
+        <tr>
+          <td align="left">Paraformer-WSC-Finetune⭐</td><td>220M</td><td>12.15</td><td>22.60</td><td>13.51</td><td>16.60</td><td>8.02</td><td>14.58</td>
+        </tr>
+        <tr>
+          <td align="left"><span style="background-color: #d4edda;">Paraformer + internal data⭐</span></td><td>220M</td><td><u>11.93</u></td><td><u>21.82</u></td><td><u>13.14</u></td><td><u>15.61</u></td><td>6.77</td><td><u>13.85</u></td>
+        </tr>
+        <tr>
+          <td align="left"><span style="background-color: #d4edda;">Paraformer-WSC-Finetune + internal data⭐</span></td><td>220M</td><td><b>11.59</b></td><td><b>21.59</b></td><td><b>12.87</b></td><td><b>14.59</b></td><td>6.28</td><td><b>13.38</b></td>
+        </tr>
+      </table>
+
+
+
+<h2 id="tts" style="text-align: center; margin-top: 40px;">TTS Evaluation</h2>
+
+<table style="margin: 0 auto; border-collapse: collapse; text-align: center;">
+  <tr>
+    <th rowspan="2" align="left">Model</th>
+    <th colspan="5">WSC-Eval-TTS-easy</th>
+    <th colspan="5">WSC-Eval-TTS-hard</th>
+  </tr>
+  <tr>
+    <th>CER(%)↓</th>
+    <th>SIM(%)↑</th>
+    <th>IMOS↑</th>
+    <th>SMOS↑</th>
+    <th>AMOS↑</th>
+    <th>CER(%)↓</th>
+    <th>SIM(%)↑</th>
+    <th>IMOS↑</th>
+    <th>SMOS↑</th>
+    <th>AMOS↑</th>
+  </tr>
+
+  <tr>
+    <td align="left">Step-Audio-TTS<sup>[21]</sup></td>
+    <td>10.83</td><td>67.66</td><td>3.81</td><td>2.86</td><td>3.15</td>
+    <td>12.52</td><td>54.52</td><td>3.75</td><td>2.77</td><td>3.06</td>
+  </tr>
+  <tr>
+    <td align="left">CosyVoice 2.0<sup>[22]</sup></td>
+    <td>7.14</td><td>70.27</td><td>3.88</td><td>3.10</td><td>3.69</td>
+    <td>9.06</td><td>60.10</td><td>3.96</td><td>2.73</td><td>3.81</td>
+  </tr>
+  <tr>
+    <td align="left">Qwen-TTS<sup>†</sup></td>
+    <td><u>4.13</u></td><td>-</td><td>3.95</td><td>-</td><td>3.90</td>
+    <td><u>7.35</u></td><td>-</td><td><b>4.02</b></td><td>-</td><td>3.88</td>
+  </tr>
+  <!-- <tr style="background-color: #d4edda;"> -->
+    <td align="left"><span style="background-color: #d4edda;">CosyVoice2-WSC⭐</span></td>
+    <td>4.28</td><td><u>72.78</u></td><td><b>4.13</b></td><td><u>3.94</u></td><td><u>4.05</u></td>
+    <td>8.78</td><td><u>62.59</u></td><td>3.85</td><td><u>2.78</u></td><td><u>3.92</u></td>
+  </tr>
+  <!-- <tr style="background-color: #d4edda;"> -->
+    <td align="left"><span style="background-color: #d4edda;">CosyVoice2-WSC-SFT⭐</span></td>
+    <td><b>4.08</b></td><td><b>78.84</b></td><td><u>4.10</u></td><td><b>4.16</b></td><td><b>4.20</b></td>
+    <td><b>7.22</b></td><td><b>67.96</b></td><td><u>4.01</u></td><td><b>3.03</b></td><td><b>3.98</b></td>
+  </tr>
+</table>
+
+
+
+<!-- <div style="max-width: 900px; margin: 0 auto; font-size: 0.95em; color: #555; text-align: left;">
+  <sup>&dagger;</sup> Commercial system with a single fixed speaker; speaker similarity is not evaluated.
+</div> -->
+<div style="font-size: 0.90em; color: #888; text-align: left; margin-top: 8px; margin-left: 2.5%; font-style: italic; max-width: 95%;">
+  <sup>&dagger;</sup> Commercial system with a single fixed speaker; speaker similarity is not evaluated.
+</div>
+
+
+<h2 id="tts_demo" style="text-align: center;">TTS Demo<a name="Comparison"></a></h2>
+<h3 id="tts_demo" style="text-align: center;">Model Comparison<a name="Comparison"></a></h3>
+
+<p style="font-size: 14px; margin-top: 10px; color: #555;">
+  CosyVoice2-WSC is a finetuned CosyVoice2 model using WenetSpeech-Chuan.
+</p>
+<p style="font-size: 14px; margin-top: 10px; color: #555;">
+  Llasa-1B-WSC is a finetuned Llasa-1B model using WenetSpeech-Chuan.
+</p>
+
+  <table style="margin: 0 auto; width: 95%; border-collapse: collapse;">
+    <thead>
+      <tr id="header-row">
+        <th>Text</th>
+        <!-- JS会插入系统名 -->
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="8">Loading...</td></tr>
+    </tbody>
+  </table>
+
+
+<br>
+<h3 id="tts_demo" style="text-align: center;">CosyVoice2-WSC-SFT<a name="Comparison"></a></h3>
+<p style="font-size: 14px; margin-top: 10px; color: #555;">
+Further supervised fine-tune CosyVoice2-WSC with 100 hours of internal high-quality data from two fixed speakers.
+</p>
+
+<table style="margin: 0 auto; width: 95%; border-collapse: collapse; text-align: center; font-size: 1em;">
+  <thead>
+    <tr>
+      <th style="border: 1px solid #ccc; padding: 12px; width: 20%;">Text</th>
+      <th style="border: 1px solid #ccc; padding: 12px; width: 25%;">Reference Audio</th>
+      <th style="border: 1px solid #ccc; padding: 12px; width: 25%;">Synthetic Audio</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- 模型1行 -->
+    <tr>
+      <td style="border: 1px solid #ccc; padding: 12px; text-align: left;">我跟你说哦，这几天重庆的天气真的是又热又湿，简直没法忍受，出门走几步就全身湿透了。</td>
+      <!-- Reference音频：引用F01_中立_20054.wav -->
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/ref/F22_愤怒_20012.wav" type="audio/wav">
+        </audio>
+      </td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/sys/5.wav" type="audio/wav">
+          Your browser does not support the audio element.
+      </td>
+    </tr>
+    <!-- 模型2行 -->
+     <tr>
+      <td style="border: 1px solid #ccc; padding: 12px; text-align: left;">我们就当做好事一样，绝对不要让这样子的事情发生。领导答应之后哈，我就联系了他的妈老汉儿，把事情都跟他们的讲清楚了，然后把银行卡号拿到之后，按流程办理了退款。</td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/ref/F22_开心_20007.wav" type="audio/wav">
+        </audio>
+      </td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/sys/10.wav" type="audio/wav">
+          Your browser does not support the audio element.
+      </td>
+    </tr>
+    <!-- 模型3行 -->
+     <tr>
+      <td style="border: 1px solid #ccc; padding: 12px; text-align: left;">晚上去吃烧烤，朋友非要点个变态辣的鸡翅，说是过瘾，结果吃了一口眼泪都出来了，嘴巴像被火烧一样，服务员都吓得给我们送牛奶来。</td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/ref/sichuan_man_20211012398.wav" type="audio/wav">
+        </audio>
+      </td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/sys/3.wav" type="audio/wav">
+          Your browser does not support the audio element.
+      </td>
+    </tr>
+    <!-- 模型4行 -->
+     <tr>
+      <td style="border: 1px solid #ccc; padding: 12px; text-align: left;">你说话能不能不要那么冲，我跟你讲不是每个人都惯着你耍性子的，我脾气也有点儿爆！</td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/ref/sichuan_man_20211012399.wav" type="audio/wav">
+        </audio>
+      </td>
+      <td style="border: 1px solid #ccc; padding: 12px;">
+        <audio controls style="width: 90%; max-width: 250px;">
+          <source src="raw/TTS_samples_1/sys/8.wav" type="audio/wav">
+          Your browser does not support the audio element.
+      </td>
+    </tr>
+    
+
+
+
+
+  </tbody>
+</table>
+
+
+
+
+    
+</section>
+</body>
+
+<script>
+  // 配置
+  const systems = ["ref", "Cosyvoice2", "CosyVoice2-Chuan", "StepAudio", "Llasa-1B-Chuan"];
+  const systemDisplayNames = {
+    "ref": "Reference",
+    "Llasa-1B-Chuan": "Llasa-1B-WSC",
+    "Cosyvoice2": "Cosyvoice2",
+    "StepAudio": "Step-Audio-TTS-3B",
+    "CosyVoice2-Chuan": "CosyVoice2-WSC",
+  };
+
+  // 动态生成表头
+  const headerRow = document.getElementById('header-row');
+  systems.forEach(sys => {
+    const th = document.createElement('th');
+    th.textContent = systemDisplayNames[sys] || sys;
+    if (sys === "Llasa-1B-Chuan" || sys === "CosyVoice2-Chuan") {
+      th.style.backgroundColor = "#ffe0b2"; // 高亮颜色
+      th.style.fontWeight = "bold";
+    }
+    headerRow.appendChild(th);
+  });
+
+  // 读取并解析text.txt
+  fetch('raw/TTS_samples/text.txt')
+    .then(response => response.text())
+    .then(text => {
+      const lines = text.trim().split('\n');
+      const data = lines.map(line => {
+        const [filename, content] = line.split('|');
+        return { filename: filename.trim(), text: content.trim() };
+      });
+
+      // 生成表格内容
+      const tbody = document.getElementById('tbody');
+      tbody.innerHTML = ""; // 清空Loading
+      data.forEach(item => {
+        const tr = document.createElement('tr');
+        // 文本列
+        const tdText = document.createElement('td');
+        tdText.className = "text-cell";
+        tdText.textContent = item.text;
+        tr.appendChild(tdText);
+
+        // 各系统音频
+        systems.forEach(sys => {
+          const td = document.createElement('td');
+          if (sys === "Llasa-1B-Chuan" || sys === "CosyVoice2-Chuan") {
+            td.style.backgroundColor = "#fff3e0"; // 高亮颜色
+          }
+          const audio = document.createElement('audio');
+          audio.controls = true;
+          audio.style.width = "180px";
+          audio.src = `raw/TTS_samples/${sys}/${item.filename}.wav`;
+          td.appendChild(audio);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      document.getElementById('tbody').innerHTML = `<tr><td colspan="${systems.length+1}">Failed to load text.txt: ${err}</td></tr>`;
+    });
+</script>
+
+
