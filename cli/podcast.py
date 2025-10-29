@@ -57,7 +57,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=1988, help="Random seed")
     args = parser.parse_args()
 
-    with open(args.json_path, "r") as f:
+    with open(args.json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     inputs = podcast_format_parser(data)
     run_inference(
