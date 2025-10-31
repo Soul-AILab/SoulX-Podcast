@@ -38,6 +38,26 @@ To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podc
 
 - **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, as as ***laugher*** and ***sighs*** to enhance the realism of synthesized results.
 
+- **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, such as ***laughter***, ***breathing*** and ***coughing*** to enhance the realism of synthesized results. These are represented as inline non-verbal tokens (special tokens) that you can insert into input text to request short non-speech events during generation.
+
+### Non-verbal / Paralinguistic tags
+
+The model accepts a set of non-verbal tokens which can be inserted directly into the prompt text to produce short paralinguistic events. Example tokens include:
+
+- `<|laughter|>`
+- `<|breathing|>`
+- `<|coughing|>`
+
+Example usage (manual text or inside your podcast JSON):
+
+```
+[S1]Hello everyone, welcome to the show. <|laughter|> Today we have a great lineup.<|breathing|> Let's get started. <|coughing|>
+
+
+```
+
+When included in the input, the model will attempt to synthesize short, natural-sounding non-verbal events at those positions. Use these sparingly—paralinguistic events are best when used to punctuate dialogue or emphasize conversational turns.
+
 <table align="center">
   <tr>
     <td align="center"><br><img src="assets/performance_radar.png" width="80%" /></td>
@@ -79,6 +99,34 @@ To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podc
 </div>
 
 For more examples, see [demo page](https://soul-ailab.github.io/soulx-podcast/).
+
+## Gradio UI (Interactive demo)
+
+A lightweight Gradio-based UI is included to help you run quick experiments locally. The UI exposes two modes:
+
+- Single Speaker: one-off utterance synthesis with an optional reference audio/text.
+- Dual Speaker: multi-turn dialogue synthesis. You can provide a multi-line dialogue using either the bracketed tags `[S1]` / `[S2]` or the prefix form `S1:` / `S2:`. Example:
+
+```
+[S1] Hello everyone, welcome to the show. <|laughter|>
+[S2] Thanks — happy to be here. <|breathing|>
+```
+
+The Dual Speaker tab accepts up to two reference audios and optional reference texts (one per speaker). If your dialogue references a speaker (for example `[S2]`) but you only supplied one reference, the UI will create a short silent fallback audio for the missing speaker so the preprocessing pipeline has a valid entry.
+
+Files:
+
+- `gradio_app.py` — the Gradio app entrypoint (run with `python gradio_app.py`).
+- `example/gradio/README.md` — usage notes and examples for the Gradio UI.
+- `example/gradio/smoke_test.py` — lightweight smoke test that validates input handling and can optionally run a full inference with `--run`.
+
+Quick start (from project root):
+
+```bash
+pip install -r requirements.txt
+python gradio_app.py
+# open http://localhost:7860 in your browser
+```
 
 
 ## 🚀 News

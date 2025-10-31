@@ -211,3 +211,67 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+
+# -------------------------------
+# Python & Virtual Environment
+# -------------------------------
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# -------------------------------
+# IDE / OS Files
+# -------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# -------------------------------
+# Models & Checkpoints
+# -------------------------------
+pretrained_models/
+*.safetensors
+*.bin
+*.ckpt
+*.onnx
+
+# -------------------------------
+# Output / Generated Audio
+# -------------------------------
+outputs/
+*.wav
+*.mp3
+*.ogg
+
+# -------------------------------
+# Cache & Temporary Files
+# -------------------------------
+cache/
+tmp/
+*.tmp
+*.bak
+*.npy
+*.npz
+
+# -------------------------------
+# Hugging Face / Torch / Diffusers Cache
+# -------------------------------
+~/.cache/
+huggingface/
+hf_cache/
+transformers_cache/
+torch_cache/
+diffusers_cache/
+
+# -------------------------------
+# Environment / Secrets
+# -------------------------------
+.env
+.env.*
+secrets.json
+credentials.json
