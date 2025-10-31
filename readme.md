@@ -81,7 +81,7 @@ For more examples, see [demo page](https://soul-ailab.github.io/soulx-podcast/).
 
 
 ## 🚀 News
-- **[2025-10-30]** Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
+- **[2025-10-31]** Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
 
 - **[2025-10-30]** Add example scripts for monologue TTS and support a WebUI for easy inference.
 
