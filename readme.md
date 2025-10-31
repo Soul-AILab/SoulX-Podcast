@@ -81,6 +81,7 @@ For more examples, see [demo page](https://soul-ailab.github.io/soulx-podcast/).
 
 
 ## 🚀 News
+- **[2025-10-30]** Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
 
 - **[2025-10-30]** Add example scripts for monologue TTS and support a WebUI for easy inference.
 
@@ -173,7 +174,7 @@ python3 webui.py --model_path pretrained_models/SoulX-Podcast-1.7B-dialect
 - [x] Add example scripts for monologue TTS.
 - [x] Publish the [technical report](https://arxiv.org/pdf/2510.23541).
 - [x] Develop a WebUI for easy inference.
-- [ ] Deploy an online demo on Hugging Face Spaces.
+- [x] Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
 - [ ] Dockerize the project with vLLM support.
 - [ ] Add support for streaming inference.
 

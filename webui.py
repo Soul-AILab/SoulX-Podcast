@@ -8,8 +8,8 @@ import importlib.util
 from datetime import datetime
 
 import torch
-import numpy as np  # 确保导入 numpy
-import random     # 确保导入 random
+import numpy as np  
+import random    
 import s3tokenizer
 
 from soulxpodcast.models.soulxpodcast import SoulXPodcast
@@ -19,22 +19,49 @@ from soulxpodcast.utils.dataloader import (
     SPK_DICT, TEXT_START, TEXT_END, AUDIO_START, TASK_PODCAST
 )
 
-# ================================================
-#                   示例音频路径
-# ================================================
-S1_PROMPT_WAV = "example/audios/female_mandarin.wav"  # 示例路径
-S2_PROMPT_WAV = "example/audios/male_mandarin.wav"  # 示例路径
+
+S1_PROMPT_WAV = "example/audios/female_mandarin.wav"  
+S2_PROMPT_WAV = "example/audios/male_mandarin.wav"  
+
+def load_dialect_prompt_data():
+    """
+    加载方言提示文本文件并格式化为嵌套字典。
+    返回结构: {dialect_key: {display_name: full_text, ...}, ...}
+    """
+    dialect_data = {}
+    
+    dialect_files = [
+        ("sichuan", "example/dialect_prompt/sichuan.txt", "<|Sichuan|>"),
+        ("yueyu", "example/dialect_prompt/yueyu.txt", "<|Yue|>"),
+        ("henan", "example/dialect_prompt/henan.txt", "<|Henan|>"),
+    ]
+    
+    for key, file_path, prefix in dialect_files:
+        dialect_data[key] = {"(无)": ""} 
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for i, line in enumerate(lines):
+                    line = line.strip()
+                    if line:
+                        full_text = f"{prefix}{line}"
+                        display_name = f"例{i+1}: {line[:20]}..."
+                        dialect_data[key][display_name] = full_text
+        except FileNotFoundError:
+            print(f"[WARNING] 方言文件未找到: {file_path}")
+        except Exception as e:
+            print(f"[WARNING] 读取方言文件失败 {file_path}: {e}")
+            
+    return dialect_data
+
+DIALECT_PROMPT_DATA = load_dialect_prompt_data()
+DIALECT_CHOICES = ["(无)", "sichuan", "yueyu", "henan"]
 
 
-# ================================================
-#                   示例数据 (gr.Examples)
-# ================================================
 EXAMPLES_LIST = [
-    # 示例 1：清空所有
     [
         None, "", "", None, "", "", ""
     ],
-    # 示例 2：普通播客
     [
         S1_PROMPT_WAV,
         "喜欢攀岩、徒步、滑雪的语言爱好者，以及过两天要带着全部家当去景德镇做陶瓷的白日梦想家。",
@@ -44,7 +71,6 @@ EXAMPLES_LIST = [
         "",
         "[S1] 哈喽，AI时代的冲浪先锋们！欢迎收听《AI生活进行时》。啊，一个充满了未来感，然后，还有一点点，<|laughter|>神经质的播客节目，我是主持人小希。\n[S2] 哎，大家好呀！我是能唠，爱唠，天天都想唠的唠嗑！\n[S1] 最近活得特别赛博朋克哈！以前老是觉得AI是科幻片儿里的，<|sigh|> 现在，现在连我妈都用AI写广场舞文案了。\n[S2] 这个例子很生动啊。是的，特别是生成式AI哈，感觉都要炸了！ 诶，那我们今天就聊聊AI是怎么走进我们的生活的哈！",
     ],
-    # 示例 3：四川播客
     [
         S1_PROMPT_WAV,
         "喜欢攀岩、徒步、滑雪的语言爱好者，以及过两天要带着全部家当去景德镇做陶瓷的白日梦想家。",
@@ -54,7 +80,6 @@ EXAMPLES_LIST = [
         "<|Sichuan|>哎哟喂，这个搞反了噻！黑神话里头唱曲子的王二浪早八百年就在黄土高坡吼秦腔喽，游戏组专门跑切录的原汤原水，听得人汗毛儿都立起来！",
         "[S1] <|Sichuan|>各位《巴适得板》的听众些，大家好噻！我是你们主持人晶晶。今儿天气硬是巴适，不晓得大家是在赶路嘛，还是茶都泡起咯，准备跟我们好生摆一哈龙门阵喃？\n[S2] <|Sichuan|>晶晶好哦，大家安逸噻！我是李老倌。你刚开口就川味十足，摆龙门阵几个字一甩出来，我鼻子头都闻到茶香跟火锅香咯！\n[S1] <|Sichuan|>就是得嘛！李老倌，我前些天带个外地朋友切人民公园鹤鸣茶社坐了一哈。他硬是搞不醒豁，为啥子我们一堆人围到杯茶就可以吹一下午壳子，从隔壁子王嬢嬢娃儿耍朋友，扯到美国大选，中间还掺几盘斗地主。他说我们四川人简直是把摸鱼刻进骨子里头咯！\n[S2] <|Sichuan|>你那个朋友说得倒是有点儿趣，但他莫看到精髓噻。摆龙门阵哪是摸鱼嘛，这是我们川渝人特有的交际方式，更是一种活法。外省人天天说的松弛感，根根儿就在这龙门阵里头。今天我们就要好生摆一哈，为啥子四川人活得这么舒坦。就先从茶馆这个老窝子说起，看它咋个成了我们四川人的魂儿！",
     ],
-    # 示例 4：粤语播客
     [
         S1_PROMPT_WAV,
         "喜欢攀岩、徒步、滑雪的语言爱好者，以及过两天要带着全部家当去景德镇做陶瓷的白日梦想家。",
@@ -64,7 +89,6 @@ EXAMPLES_LIST = [
         "<|Yue|>咪搞错啊！陕北民谣响度唱咗几十年，黑神话边有咁大面啊？你估佢哋抄游戏咩！",
         "[S1] <|Yue|>哈囉大家好啊，歡迎收聽我哋嘅節目。喂，我今日想問你樣嘢啊，你覺唔覺得，嗯，而家揸電動車，最煩，最煩嘅一樣嘢係咩啊？\n[S2] <|Yue|>梗係充電啦。大佬啊，搵個位都已經好煩，搵到個位仲要喺度等，你話快極都要半個鐘一個鐘，真係，有時諗起都覺得好冇癮。\n[S1] <|Yue|>係咪先。如果我而家同你講，充電可以快到同入油差唔多時間，你信唔信先？喂你平時喺油站入滿一缸油，要幾耐啊？五六分鐘？\n[S2] <|Yue|>差唔多啦，七八分鐘，點都走得啦。電車喎，可以做到咁快？你咪玩啦。",
     ],
-    # 示例 5：河南播客
     [
         S1_PROMPT_WAV,
         "喜欢攀岩、徒步、滑雪的语言爱好者，以及过两天要带着全部家当去景德镇做陶瓷的白日梦想家。",
@@ -77,9 +101,6 @@ EXAMPLES_LIST = [
 ]
 
 
-# ================================================
-#                   SoulX-Podcast Model
-# ================================================
 model: SoulXPodcast = None
 dataset: PodcastInferHandler = None
 def initiate_model(config: Config, enable_tn: bool=False):
@@ -90,10 +111,6 @@ def initiate_model(config: Config, enable_tn: bool=False):
     global dataset
     if dataset is None:
         dataset = PodcastInferHandler(model.llm.tokenizer, None, config)
-
-# ================================================
-#                   Gradio
-# ================================================
 
 _i18n_key2lang_dict = dict(
     # Speaker1 Prompt
@@ -181,7 +198,6 @@ _i18n_key2lang_dict = dict(
 global_lang: Literal["zh", "en"] = "zh"
 
 def i18n(key):
-    # (保持不变)
     global global_lang
     return _i18n_key2lang_dict[key][global_lang]
 
@@ -270,11 +286,13 @@ def process_single(target_text_list, prompt_wav_list, prompt_text_list, use_dial
         "use_dialect_prompt": use_dialect_prompt,
     }
     if use_dialect_prompt:
+        import pdb;pdb.set_trace()
         processed_data.update({
             "dialect_prompt_text_tokens_for_llm": data["dialect_prompt_text_tokens"],
             "dialect_prefix": data["dialect_prefix"],
         })
     return processed_data
+
 
 def dialogue_synthesis_function(
     target_text: str,
@@ -284,14 +302,13 @@ def dialogue_synthesis_function(
     spk2_prompt_text: str | None = "",
     spk2_prompt_audio: str | None = None,
     spk2_dialect_prompt_text: str | None = "",
-    seed: int = 1988, # <-- seed 参数保留
+    seed: int = 1988,
 ):
-    # ================== 设置随机种子 ==================
+    
     seed = int(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    # ================================================
 
     # Check prompt info
     target_text_list: List[str] = re.findall(r"(\[S[0-9]\][^\[\]]*)", target_text)
@@ -325,9 +342,29 @@ def dialogue_synthesis_function(
     return (24000, target_audio.cpu().squeeze(0).numpy())
 
 
+def update_example_choices(dialect_key: str):
+
+    if dialect_key == "(无)":
+        choices = ["(请先选择方言)"]
+
+        return gr.update(choices=choices, value="(无)"), gr.update(choices=choices, value="(无)")
+    
+    choices = list(DIALECT_PROMPT_DATA.get(dialect_key, {}).keys())
+
+    return gr.update(choices=choices, value="(无)"), gr.update(choices=choices, value="(无)")
+
+def update_prompt_text(dialect_key: str, example_key: str):
+    if dialect_key == "(无)" or example_key in ["(无)", "(请先选择方言)"]:
+        return gr.update(value="")
+    
+
+    full_text = DIALECT_PROMPT_DATA.get(dialect_key, {}).get(example_key, "")
+    return gr.update(value=full_text)
+
+
 def render_interface() -> gr.Blocks:
     with gr.Blocks(title="SoulX-Podcast", theme=gr.themes.Default()) as page:
-        # ======================== UI ========================
+
         with gr.Row():
             lang_choice = gr.Radio(
                 choices=["中文", "English"],
@@ -346,7 +383,7 @@ def render_interface() -> gr.Blocks:
             )
 
         with gr.Row():
-            # ==== Speaker1 Prompt ====
+
             with gr.Column(scale=1):
                 with gr.Group(visible=True) as spk1_prompt_group:
                     spk1_prompt_audio = gr.Audio(
@@ -366,7 +403,7 @@ def render_interface() -> gr.Blocks:
                         value="",
                         lines=3,
                     )
-            # ==== Speaker2 Prompt ====
+
             with gr.Column(scale=1, visible=True):
                 with gr.Group(visible=True) as spk2_prompt_group:
                     spk2_prompt_audio = gr.Audio(
@@ -386,7 +423,7 @@ def render_interface() -> gr.Blocks:
                         value="",
                         lines=3,
                     )
-            # ==== Text input ====
+
             with gr.Column(scale=2):
                 with gr.Row():
                     dialogue_text_input = gr.Textbox(
@@ -394,7 +431,7 @@ def render_interface() -> gr.Blocks:
                         placeholder=i18n("dialogue_text_input_placeholder"),
                         lines=18,
                     )
-        
+
         # Generate button
         with gr.Row():
             generate_btn = gr.Button(
@@ -410,6 +447,7 @@ def render_interface() -> gr.Blocks:
             interactive=False,
         )
 
+
         with gr.Row():
             inputs_for_examples = [
                 spk1_prompt_audio,
@@ -421,20 +459,55 @@ def render_interface() -> gr.Blocks:
                 dialogue_text_input,
             ]
             
-            example_headers = [
-                "S1 音频", "S1 文本", "S1 方言提示文本", 
-                "S2 音频", "S2 文本", "S2 方言提示文本", 
-                "对话内容"
-            ]
-            
             gr.Examples(
                 examples=EXAMPLES_LIST,
                 inputs=inputs_for_examples,
                 label="播客模板示例 (点击加载)",
                 examples_per_page=5,
             )
+        
+        with gr.Accordion("方言提示文本 (Dialect Prompt) 选择器", open=False):
+            gr.Markdown("选择方言后，请分别为 S1 和 S2 选择一个示例。")
+            dialect_selector = gr.Dropdown(
+                label="选择方言 (Select Dialect)", 
+                choices=DIALECT_CHOICES, 
+                value="(无)",
+                interactive=True
+            )
+            with gr.Row():
+                s1_dialect_example_selector = gr.Dropdown(
+                    label="S1 方言示例 (S1 Dialect Example)", 
+                    choices=["(请先选择方言)"], 
+                    value="(无)",
+                    interactive=True,
+                    elem_classes="gradio-dropdown" 
+                )
+                s2_dialect_example_selector = gr.Dropdown(
+                    label="S2 方言示例 (S2 Dialect Example)", 
+                    choices=["(请先选择方言)"], 
+                    value="(无)",
+                    interactive=True,
+                    elem_classes="gradio-dropdown" 
+                )
+        
+        dialect_selector.change(
+            fn=update_example_choices,
+            inputs=[dialect_selector],
+            outputs=[s1_dialect_example_selector, s2_dialect_example_selector]
+        )
+        
+        s1_dialect_example_selector.change(
+            fn=update_prompt_text,
+            inputs=[dialect_selector, s1_dialect_example_selector],
+            outputs=[spk1_dialect_prompt_text]
+        )
+        
+        s2_dialect_example_selector.change(
+            fn=update_prompt_text,
+            inputs=[dialect_selector, s2_dialect_example_selector],
+            outputs=[spk2_dialect_prompt_text]
+        )
 
-        # ======================== Action ========================
         def _change_component_language(lang):
             global global_lang
             global_lang = ["zh", "en"][lang]
@@ -487,7 +560,6 @@ def render_interface() -> gr.Blocks:
             ],
         )
         
-        # Generate button click Action
         generate_btn.click(
             fn=dialogue_synthesis_function,
             inputs=[
@@ -505,9 +577,6 @@ def render_interface() -> gr.Blocks:
     return page
 
 
-# ================================================
-#                   Options
-# ================================================
 def get_args():
     parser = ArgumentParser()
     parser.add_argument('--model_path',
@@ -537,7 +606,6 @@ if __name__ == "__main__":
             initial_values={"fp16_flow": args.fp16_flow}, 
             json_file=f"{args.model_path}/soulxpodcast_config.json")
     
-    # Compatible with the absence of a VLLM installation
     llm_engine = args.llm_engine
     if llm_engine == "vllm":
         if not importlib.util.find_spec("vllm"):
@@ -546,15 +614,13 @@ if __name__ == "__main__":
             tqdm.write(f"[{timestamp}] - [WARNING]: No install VLLM, switch to hf engine.")
     config = Config(model=args.model_path, enforce_eager=True, llm_engine=llm_engine,
                     hf_config=hf_config)
-    
+
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     random.seed(args.seed)
 
     initiate_model(config)
-    print("[INFO] SoulX-Podcast loaded")
-    # UI
+    print("[INFO] SoulX-Podcast loaded")    
     page = render_interface()
     page.queue()
-    # page.launch()
     page.launch(share=False)
