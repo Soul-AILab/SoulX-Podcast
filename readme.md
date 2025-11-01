@@ -229,7 +229,6 @@ You’re welcome to join our WeChat group for technical discussions, updates.
   </span>
 </p>
 
-<!-- <p align="center">
-    <img src="src/figs/npu@aslp.jpeg" width="500"/>
-</p -->
-<!-- <img src="assets/wechat.jpg -->
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Soul-AILab/SoulX-Podcast&type=date&legend=top-left)](https://www.star-history.com/#Soul-AILab/SoulX-Podcast&type=date&legend=top-left)
