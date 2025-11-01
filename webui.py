@@ -286,7 +286,6 @@ def process_single(target_text_list, prompt_wav_list, prompt_text_list, use_dial
         "use_dialect_prompt": use_dialect_prompt,
     }
     if use_dialect_prompt:
-        import pdb;pdb.set_trace()
         processed_data.update({
             "dialect_prompt_text_tokens_for_llm": data["dialect_prompt_text_tokens"],
             "dialect_prefix": data["dialect_prefix"],
