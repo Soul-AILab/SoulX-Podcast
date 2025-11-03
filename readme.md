@@ -108,6 +108,14 @@ pip install -r requirements.txt
 # If you are in mainland China, you can set the mirror as follows:
 pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host=mirrors.aliyun.com
 ```
+- [Optional] VLLM accleration(Modified version from vllm 0.10.1)
+```
+cd runtime/vllm
+docker build -t soulxpodcast:v1.0 .
+# Mounts the host directory at LOCAL_RESOURCE_PATH to CONTAINER_RESOURCE_PATH in the container, enabling file sharing between the host system and container. To access the web application, add -p LOCAL_PORT:CONTAINER_PORT
+# example: docker run -it --runtime=nvidia  --name soulxpodcast  -v /mnt/data:/mnt/data -p 7860:7860 soulxpodcast:v1.0
+docker run -it --runtime=nvidia  --name soulxpodcast  -v LOCAL_RESOURCE_PATH:CONTAINER_RESOURCE_PATH soulxpodcast:v1.0
+```
 
 ### Model Download
 
@@ -176,7 +184,7 @@ python3 webui.py --model_path pretrained_models/SoulX-Podcast-1.7B-dialect
 - [x] Publish the [technical report](https://arxiv.org/pdf/2510.23541).
 - [x] Develop a WebUI for easy inference.
 - [x] Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
-- [ ] Dockerize the project with vLLM support.
+- [x] Dockerize the project with vLLM support.
 - [ ] Add support for streaming inference.
 
 ## Citation

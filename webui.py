@@ -593,6 +593,10 @@ def get_args():
                         type=int,
                         default=1988,
                         help='random seed for generation')
+    parser.add_argument('--port',
+                        type=int,
+                        default=7860,
+                        help='gradio port for web app')
     args = parser.parse_args()
     return args
 
@@ -622,4 +626,4 @@ if __name__ == "__main__":
     print("[INFO] SoulX-Podcast loaded")    
     page = render_interface()
     page.queue()
-    page.launch(share=False)
+    page.launch(share=False, server_name="0.0.0.0", server_port=args.port)

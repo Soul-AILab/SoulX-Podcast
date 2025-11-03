@@ -88,7 +88,7 @@ class VLLMEngine:
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         os.environ["VLLM_USE_V1"] = "0"
         if SUPPORT_VLLM:
-            self.model = LLM(model=model, enforce_eager=True, dtype="bfloat16", max_model_len=8192)
+            self.model = LLM(model=model, enforce_eager=True, dtype="bfloat16", max_model_len=8192, enable_prefix_caching=True,)
         else:
             raise ImportError("Not Support VLLM now!!!")
         self.config = config
