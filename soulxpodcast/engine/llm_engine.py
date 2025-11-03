@@ -40,9 +40,8 @@ class HFLLMEngine:
         sampling_param: SamplingParams,
         past_key_values=None,
     ) -> dict:
-
-        # 不再手动创建stopping_criteria，让generate方法自动处理
-        # stopping_criteria = StoppingCriteriaList([EosTokenCriteria(eos_token_id=self.config.hf_config.eos_token_id)])
+        
+        stopping_criteria = StoppingCriteriaList([EosTokenCriteria(eos_token_id=self.config.hf_config.eos_token_id)])
         if sampling_param.use_ras:
             sample_hf_engine_handler = partial(_ras_sample_hf_engine, 
                     use_ras=sampling_param.use_ras, 
@@ -63,18 +62,13 @@ class HFLLMEngine:
                 min_new_tokens=sampling_param.min_tokens,
                 max_new_tokens=sampling_param.max_tokens,
                 temperature=sampling_param.temperature,
-                eos_token_id=self.config.hf_config.eos_token_id,  # 直接设置eos_token_id
+                stopping_criteria=stopping_criteria,
                 past_key_values=past_key_values,
                 custom_generate=sample_hf_engine_handler,
                 use_cache=True,
                 logits_processor=[rep_pen_processor]
             )
             generated_ids = generated_ids[:, input_len:].cpu().numpy().tolist()[0]
-
-        # 清理生成过程中的缓存
-        if hasattr(self.model, 'past_key_values'):
-            self.model.past_key_values = None
-
         output = {
             "text": self.tokenizer.decode(generated_ids),
             "token_ids": generated_ids,

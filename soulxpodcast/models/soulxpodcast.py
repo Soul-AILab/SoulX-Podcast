@@ -108,16 +108,12 @@ class SoulXPodcast(torch.nn.Module):
                 history_inputs.append(prompt_text_tokens_for_llm[i] + speech_tokens_i )
 
         generated_wavs, results_dict = [], {}
-
+        
         # LLM generation
         inputs = list(chain.from_iterable(prompt_inputs))
         cache_config = AutoPretrainedConfig().from_dataclass(self.llm.config.hf_config)
         past_key_values = DynamicCache(config=cache_config)
         valid_turn_size = prompt_size
-
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
-        tqdm.write(f"[{timestamp}] - [INFO] - Starting generation for {turn_size} turns")
-
         for i in range(turn_size):
 
             # # set ratio: reach the reset cache ratio;
@@ -134,21 +130,12 @@ class SoulXPodcast(torch.nn.Module):
             valid_turn_size += 1
             
             inputs.extend(text_tokens_for_llm[i])
-
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
-            tqdm.write(f"[{timestamp}] - [INFO] - Turn {i+1}/{turn_size}: Starting LLM generation with {len(inputs)} input tokens")
-
             start_time = time.time()
             llm_outputs = self.llm.generate(inputs, sampling_params, past_key_values=past_key_values)
-
-            generation_time = time.time() - start_time
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
-            tqdm.write(f"[{timestamp}] - [INFO] - Turn {i+1}/{turn_size}: Generated {len(llm_outputs['token_ids'])} tokens in {generation_time:.2f}s")
 
             inputs.extend(llm_outputs['token_ids'])
             prompt_inputs.append(text_tokens_for_llm[i]+llm_outputs['token_ids'])
             history_inputs.append(text_tokens_for_llm[i][:-1]) # remove the <|audio_start|>
-
             
             # Prepare Flow inputs
             turn_spk = spk_ids[i]
@@ -174,12 +161,7 @@ class SoulXPodcast(torch.nn.Module):
             # HiFi-GAN generation
             mel = generated_mels[:, :, prompt_mels_lens[0].item():generated_mels_lens[0].item()]
             wav, _ = self.hift(speech_feat=mel)
-            generated_wavs.append(wav.detach())  # 使用detach避免保留计算图
-
-            # 清理中间变量
-            del mel
-            del generated_mels
-            del generated_mels_lens
+            generated_wavs.append(wav)
 
         # Save the generated wav;
         results_dict['generated_wavs'] = generated_wavs
