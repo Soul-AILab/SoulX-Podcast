@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 pretrained_models/
 outputs/
+
+# API temporary files
+api/temp/
+api/outputs/
 # C extensions
 *.so
 
@@ -82,7 +86,8 @@ target/
 # IPython
 profile_default/
 ipython_config.py
-
+.claude/
+CLAUDE.md
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:

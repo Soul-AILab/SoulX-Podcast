@@ -110,7 +110,7 @@ class SamplingParams:
     top_k: int = 100
     top_p: float = 0.9
     min_tokens: int = 8
-    max_tokens: int = 3000
+    max_tokens: int = 5000  # 恢复到更大的值，支持长音频生成
     stop_token_ids: list[int] = field(default_factory=lambda: [151675])
     # RasSampler parameters
     use_ras: bool = True
