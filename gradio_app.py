@@ -476,8 +476,8 @@ def main():
                             choices=sample_files,
                             value=("female_mandarin.wav" if "female_mandarin.wav" in sample_files else (sample_files[0] if sample_files else None)),
                         )
-                        sample_path_display = gr.Textbox(label="Resolved sample path (Speaker 1)", interactive=False)
-                        # update displayed path when sample choice changes
+                        # (Resolved sample path display removed per UI simplification request)
+                        # update helper to compute sample path when needed
                         def _sample_path(choice):
                             try:
                                 if not choice:
@@ -486,8 +486,6 @@ def main():
                                 return p if os.path.exists(p) else p
                             except Exception:
                                 return ""
-
-                        sample_choice.change(fn=_sample_path, inputs=[sample_choice], outputs=[sample_path_display])
                         use_sample = gr.Checkbox(label="Use selected sample as reference audio (if no upload)", value=True)
                         # Use a simple Audio component; avoid `source` kwarg for compatibility
                         prompt_wav = gr.Audio(label="Or upload your own reference audio (takes precedence)", type="filepath")
@@ -587,10 +585,8 @@ def main():
                         # per-speaker sample selectors and auto-fill
                         sample_choice_s1 = gr.Dropdown(label="Sample for Speaker 1 (repo examples)", choices=sample_files, value=(sample_files[0] if sample_files else None))
                         use_sample_s1 = gr.Checkbox(label="Use selected sample for Speaker 1 if no upload", value=True)
-                        sample_path_s1_display = gr.Textbox(label="Resolved sample path (Speaker 1)", interactive=False)
                         sample_choice_s2 = gr.Dropdown(label="Sample for Speaker 2 (repo examples)", choices=sample_files, value=(sample_files[1] if len(sample_files) > 1 else (sample_files[0] if sample_files else None)))
                         use_sample_s2 = gr.Checkbox(label="Use selected sample for Speaker 2 if no upload", value=False)
-                        sample_path_s2_display = gr.Textbox(label="Resolved sample path (Speaker 2)", interactive=False)
                         auto_fill_s2 = gr.Checkbox(label="Auto-fill Speaker 2 with Speaker 1 sample if Speaker 2 missing", value=True)
                         run_dual_btn = gr.Button("Run Dual-Speaker Inference")
                         status_d = gr.Textbox(label="Job status / messages", interactive=False)
@@ -602,9 +598,7 @@ def main():
                         sample_choice_unused = gr.State(value=None)
                         use_sample_unused = gr.State(value=False)
 
-                        # update displayed path when sample choices change
-                        sample_choice_s1.change(fn=_sample_path, inputs=[sample_choice_s1], outputs=[sample_path_s1_display])
-                        sample_choice_s2.change(fn=_sample_path, inputs=[sample_choice_s2], outputs=[sample_path_s2_display])
+                        # (Resolved sample path displays removed for both speakers)
 
                 run_dual_btn.click(
                     fn=infer_from_ui,
