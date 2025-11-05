@@ -1,0 +1,19 @@
+{
+  "speakers": {
+    "S1": {
+      "prompt_text": "A calm female host in Mandarin",
+      "prompt_audio": "example/audios/female_mandarin.wav",
+      "dialect_prompt": ""
+    },
+    "S2": {
+      "prompt_text": "A guest voice, energetic",
+      "prompt_audio": "/path/to/your/uploaded_speaker2.wav",
+      "dialect_prompt": ""
+    }
+  },
+  "text": [
+    ["S1", "Hello everyone, welcome to the show. <|laughter|>"],
+    ["S2", "Thanks for having me — I'm excited to be here. <|breathing|>"],
+    ["S1", "Let's get started with our first topic."]
+  ]
+}

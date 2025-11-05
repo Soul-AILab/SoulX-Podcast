@@ -1,0 +1,7 @@
+{
+  "speakers": {
+    "S1": { "prompt_text": "Host voice (uses sample1 token)", "prompt_audio": "sample1" },
+    "S2": { "prompt_text": "Guest voice (uses sample2 token)", "prompt_audio": "sample2" }
+  },
+  "text": [["S1","Welcome to the show."],["S2","Thanks for having me."]]
+}
