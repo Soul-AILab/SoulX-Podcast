@@ -242,6 +242,31 @@ _i18n_key2lang_dict = dict(
         en="Please provide prompt audio and text for all speakers used in the dialogue",
         zh="请为对话中使用的所有说话人提供参考语音与参考文本",
     ),
+    # Speaker manage controls
+    add_speaker_btn_label=dict(
+        en="Add 1 Speaker",
+        zh="添加1个说话人",
+    ),
+    quick_add_num_label=dict(
+        en="Quick Add Count",
+        zh="快速添加数量",
+    ),
+    quick_add_btn_label=dict(
+        en="Quick Add",
+        zh="快速添加",
+    ),
+    select_all_btn_label=dict(
+        en="Select All",
+        zh="全选",
+    ),
+    select_none_btn_label=dict(
+        en="Select None",
+        zh="全不选",
+    ),
+    batch_delete_btn_label=dict(
+        en="Delete Selected",
+        zh="批量删除选中",
+    ),
 )
 
 
@@ -250,6 +275,13 @@ global_lang: Literal["zh", "en"] = "zh"
 def i18n(key):
     global global_lang
     return _i18n_key2lang_dict[key][global_lang]
+
+def get_select_speaker_label(idx: int) -> str:
+    """返回带语言的 选择说话人/Select Speaker 标签。"""
+    global global_lang
+    if global_lang == "en":
+        return f"Select Speaker {idx}"
+    return f"选择说话人 {idx}"
 
 def check_monologue_text(text: str, prefix: str = None) -> bool:
     text = text.strip()
@@ -460,7 +492,7 @@ def create_speaker_group(spk_num: int):
     with gr.Group(visible=True) as group:
         # 添加复选框用于选择删除
         checkbox = gr.Checkbox(
-            label=f"选择说话人 {spk_num}",
+            label=get_select_speaker_label(spk_num),
             value=False,
             scale=0,
         )
@@ -527,10 +559,10 @@ def render_interface() -> gr.Blocks:
         
         # 添加/删除说话人按钮
         with gr.Row():
-            add_speaker_btn = gr.Button("➕ 添加1个说话人", variant="secondary", scale=1)
+            add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=1)
             with gr.Group():
                 quick_add_num = gr.Number(
-                    label="快速添加数量",
+                    label=i18n("quick_add_num_label"),
                     value=1,
                     minimum=1,
                     maximum=MAX_SPEAKERS,
@@ -538,10 +570,10 @@ def render_interface() -> gr.Blocks:
                     precision=0,
                     scale=1,
                 )
-                quick_add_btn = gr.Button("🚀 快速添加", variant="primary", scale=1)
-            select_all_btn = gr.Button("☑️ 全选", variant="secondary", scale=0)
-            select_none_btn = gr.Button("☐ 全不选", variant="secondary", scale=0)
-            batch_delete_btn = gr.Button("🗑️ 批量删除选中", variant="stop", scale=1)
+                quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=1)
+            select_all_btn = gr.Button(f"☑️ {i18n('select_all_btn_label')}", variant="secondary", scale=0)
+            select_none_btn = gr.Button(f"☐ {i18n('select_none_btn_label')}", variant="secondary", scale=0)
+            batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
         
         def update_speakers_visibility(num_speakers):
             """更新说话人列的可见性和标签"""
@@ -550,7 +582,7 @@ def render_interface() -> gr.Blocks:
                 visible = (i < num_speakers)
                 if visible:
                     # 更新复选框标签
-                    updates.append(gr.update(visible=True, label=f"选择说话人 {i + 1}", value=False))
+                    updates.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
                 else:
                     updates.append(gr.update(visible=False, value=False))
             return updates
@@ -632,7 +664,7 @@ def render_interface() -> gr.Blocks:
                     # 保留的说话人，从kept_indices[i]位置取数据
                     old_idx = kept_indices[i]
                     # 更新复选框
-                    result.append(gr.update(visible=True, label=f"选择说话人 {i + 1}", value=False))
+                    result.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
                     # 更新音频（如果原位置有值则使用，否则为None）
                     audio_val = audio_values[old_idx] if old_idx < len(audio_values) else None
                     result.append(gr.update(value=audio_val))
@@ -784,10 +816,14 @@ def render_interface() -> gr.Blocks:
         def _change_component_language(lang):
             global global_lang
             global_lang = ["zh", "en"][lang]
-            updates = []
-            # 更新所有说话人组件
+            checkbox_updates = []
+            input_updates = []
+            # 先收集所有复选框更新
             for i in range(MAX_SPEAKERS):
-                updates.extend([
+                checkbox_updates.append(gr.update(label=get_select_speaker_label(i + 1)))
+            # 再收集所有音频/文本/方言更新，顺序需与 all_speaker_inputs 对齐
+            for i in range(MAX_SPEAKERS):
+                input_updates.extend([
                     gr.update(label=i18n(f"spk{i+1}_prompt_audio_label") if f"spk{i+1}_prompt_audio_label" in _i18n_key2lang_dict else f"说话人 {i+1} 参考语音"),
                     gr.update(
                         label=i18n(f"spk{i+1}_prompt_text_label") if f"spk{i+1}_prompt_text_label" in _i18n_key2lang_dict else f"说话人 {i+1} 参考文本",
@@ -798,6 +834,7 @@ def render_interface() -> gr.Blocks:
                         placeholder=i18n(f"spk{i+1}_dialect_prompt_text_placeholder") if f"spk{i+1}_dialect_prompt_text_placeholder" in _i18n_key2lang_dict else "带前缀方言提示词思维链文本",
                     ),
                 ])
+            updates = checkbox_updates + input_updates
             # 添加对话文本、生成按钮和音频输出
             updates.extend([
                 gr.update(
@@ -806,13 +843,20 @@ def render_interface() -> gr.Blocks:
                 ),
                 gr.update(value=i18n("generate_btn_label")),
                 gr.update(label=i18n("generated_audio_label")),
+                # 添加/删除相关控件
+                gr.update(value=f"➕ {i18n('add_speaker_btn_label')}"),
+                gr.update(label=i18n('quick_add_num_label')),
+                gr.update(value=f"🚀 {i18n('quick_add_btn_label')}"),
+                gr.update(value=f"☑️ {i18n('select_all_btn_label')}"),
+                gr.update(value=f"☐ {i18n('select_none_btn_label')}"),
+                gr.update(value=f"🗑️ {i18n('batch_delete_btn_label')}"),
             ])
             return updates
         
         lang_choice.change(
             fn=_change_component_language,
             inputs=[lang_choice],
-            outputs=all_speaker_inputs + [dialogue_text_input, generate_btn, generate_audio],
+            outputs=speaker_checkbox_list + all_speaker_inputs + [dialogue_text_input, generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn],
         )
     return page
 
