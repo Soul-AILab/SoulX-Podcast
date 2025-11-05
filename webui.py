@@ -314,7 +314,7 @@ def check_dialogue_text(text_list: List[str], max_speakers: int = None) -> bool:
     for text in text_list:
         # 检查是否匹配 [S1] 到 [S{max_speakers}] 格式
         pattern = r'^\[S([1-9]|[1-9][0-9]+)\].*'
-        match = re.match(pattern, text.strip())
+        match = re.match(pattern, text.strip(), flags=re.DOTALL)
         if not match:
             return False
         spk_num = int(match.group(1))
@@ -328,11 +328,15 @@ def process_single(target_text_list, prompt_wav_list, prompt_text_list, use_dial
     spks, texts = [], []
     for target_text in target_text_list:
         pattern = r'(\[S([1-9]|[1-9][0-9]+)\])(.+)'
-        match = re.match(pattern, target_text)
+        match = re.match(pattern, target_text, flags=re.DOTALL)
         if not match:
+            print(f"process_single: target_text: {target_text}, not match")
             continue
+        # spk_num = match.group(1)  # 说话人编号
+        # text = match.group(2).strip()  # 内容部分
         spk_num = int(match.group(2))
         text = match.group(3).strip()
+        print(f"process_single: target_text: \nstart{target_text}\nend, spk_num: {spk_num},\n text: \nstart{text}\nend")
         spk = spk_num - 1  # S1->0, S2->1, etc.
         spks.append(spk)
         texts.append(text)
@@ -386,6 +390,7 @@ def dialogue_synthesis_function(
     target_text: str,
     speaker_configs_list: List[Tuple[str, str, str]],  # List of (prompt_text, prompt_audio, dialect_prompt_text)
     seed: int = 1988,
+    diff_spk_pause_ms: int = 0,
 ):
     """
     合成对话音频
@@ -402,14 +407,43 @@ def dialogue_synthesis_function(
     pattern = r'\[S([1-9]|[1-9][0-9]+)\](.*?)(?=\[S([1-9]|[1-9][0-9]+)\]|$)'
     matches = list(re.finditer(pattern, target_text, re.DOTALL))
     # 重新组合完整匹配：说话人标签 + 内容
+    # 支持内联停顿标记：<|pause:MS|>，用于同一说话人内部停顿
     target_text_list: List[str] = []
+    spk_seq: List[int] = []
+    pause_after_ms_list: List[int] = []  # 与target_text_list对齐，表示该片段结束后需要插入的停顿（毫秒）
+    pause_token_pattern = re.compile(r'<\|pause:(\d+)\|>')
     for match in matches:
-        spk_num = match.group(1)  # 说话人编号
+        spk_num_str = match.group(1)  # 说话人编号
         content = match.group(2)  # 内容部分
-        print(f"spk_num: {spk_num}, content: {content}")
-        # 重新组合为 [S1]内容 的格式
-        full_text = f"[S{spk_num}]{content}".strip()
-        target_text_list.append(full_text)
+        try:
+            spk_num_int = int(spk_num_str)
+        except Exception:
+            spk_num_int = -1
+        # 按停顿标记拆分内容，保留分隔符（不单独捕获数字，避免被当作文本）
+        parts = re.split(r'(<\|pause:\d+\|>)', content)
+        last_idx_with_text = None
+        for p in parts:
+            if p is None or p == '':
+                continue
+            pause_m = pause_token_pattern.fullmatch(p.strip())
+            if pause_m is not None:
+                # 设置上一个文本片段的停顿时间
+                if last_idx_with_text is not None:
+                    try:
+                        pause_ms = int(pause_m.group(1))
+                    except Exception:
+                        pause_ms = 0
+                    pause_after_ms_list[last_idx_with_text] = max(0, pause_ms)
+                continue
+            # 正常文本片段
+            text_part = p.strip()
+            if len(text_part) == 0:
+                continue
+            full_text = f"[S{spk_num_str}]{text_part}"
+            target_text_list.append(full_text)
+            spk_seq.append(spk_num_int)
+            pause_after_ms_list.append(0)  # 默认无停顿，可能被后续<|pause:...|>覆盖
+            last_idx_with_text = len(target_text_list) - 1
     
     # 找出对话中使用的最大说话人编号
     max_spk_used = 0
@@ -429,6 +463,7 @@ def dialogue_synthesis_function(
         return None
     
     if not check_dialogue_text(target_text_list, max_speakers=num_speakers):
+        print(f"dialogue_synthesis_function: target_text_list: {target_text_list}, not match")
         gr.Warning(message=i18n("warn_invalid_dialogue_text"))
         return None
 
@@ -459,12 +494,32 @@ def dialogue_synthesis_function(
         **data
     )
     target_audio = None
-    for i in range(len(results_dict['generated_wavs'])):
+    sample_rate = 24000
+    num_segments = len(results_dict['generated_wavs'])
+    for i in range(num_segments):
+        seg = results_dict['generated_wavs'][i]
         if target_audio is None:
-            target_audio = results_dict['generated_wavs'][i]
+            target_audio = seg
         else:
-            target_audio = torch.concat([target_audio, results_dict['generated_wavs'][i]], axis=1)
-    return (24000, target_audio.cpu().squeeze(0).numpy())
+            # 在不同说话者之间插入静音
+            prefer_ms = 0
+            if i > 0 and (i - 1) < len(pause_after_ms_list):
+                prefer_ms = int(pause_after_ms_list[i - 1])
+            if prefer_ms <= 0:
+                insert_silence = False
+                if i > 0 and (i - 1) < len(spk_seq) and i < len(spk_seq):
+                    prev_spk = spk_seq[i - 1]
+                    curr_spk = spk_seq[i]
+                    insert_silence = (prev_spk != curr_spk)
+                if insert_silence and diff_spk_pause_ms and diff_spk_pause_ms > 0:
+                    prefer_ms = int(diff_spk_pause_ms)
+            if prefer_ms and prefer_ms > 0:
+                silence_len = int((prefer_ms / 1000.0) * sample_rate)
+                if silence_len > 0:
+                    silence = torch.zeros((1, silence_len), dtype=seg.dtype, device=seg.device)
+                    target_audio = torch.concat([target_audio, silence], dim=1)
+            target_audio = torch.concat([target_audio, seg], dim=1)
+    return (sample_rate, target_audio.cpu().squeeze(0).numpy())
 
 
 def update_example_choices(dialect_key: str):
@@ -769,6 +824,14 @@ def render_interface() -> gr.Blocks:
                 scale=3,
                 size="lg",
             )
+            diff_spk_pause_input = gr.Number(
+                label="不同说话者间停顿(ms) / Different-speaker pause (ms)",
+                value=0,
+                minimum=0,
+                step=50,
+                interactive=True,
+                scale=1,
+            )
         
         # Long output audio
         generate_audio = gr.Audio(
@@ -778,7 +841,7 @@ def render_interface() -> gr.Blocks:
 
 
         # 收集说话人配置的包装函数
-        def collect_and_synthesize(target_text, num_speakers, seed, *speaker_args):
+        def collect_and_synthesize(target_text, num_speakers, seed, diff_spk_pause_ms, *speaker_args):
             """收集所有说话人配置并调用合成函数"""
             # speaker_args格式: (audio1, text1, dialect1, audio2, text2, dialect2, ...)
             # 只收集可见的说话人（前num_speakers个）
@@ -790,7 +853,7 @@ def render_interface() -> gr.Blocks:
                     text = speaker_args[i+1] if speaker_args[i+1] is not None else ""
                     dialect = speaker_args[i+2] if speaker_args[i+2] is not None else ""
                     speaker_configs.append((text, audio, dialect))
-            return dialogue_synthesis_function(target_text, speaker_configs, seed)
+            return dialogue_synthesis_function(target_text, speaker_configs, seed, int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0)
         
         # 生成按钮点击事件
         all_speaker_inputs = []
@@ -807,6 +870,7 @@ def render_interface() -> gr.Blocks:
                 dialogue_text_input,
                 speakers_state,
                 seed_input,
+                diff_spk_pause_input,
                 *all_speaker_inputs,
             ],
             outputs=[generate_audio],
