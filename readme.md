@@ -36,7 +36,7 @@ To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podc
 
 - **Cross-dialectal, zero-shot voice cloning**: SoulX-Podcast supports zero-shot voice cloning across different Chinese dialects, enabling the generation of high-quality, personalized speech in any of the supported dialects.
 
-- **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, as as ***laugher*** and ***sighs*** to enhance the realism of synthesized results.
+  - **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, such as ***laughter*** and ***sighs*** to enhance the realism of synthesized results.
 
 <table align="center">
   <tr>
@@ -185,7 +185,69 @@ python3 webui.py --model_path pretrained_models/SoulX-Podcast-1.7B-dialect
 - [x] Develop a WebUI for easy inference.
 - [x] Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
 - [x] Dockerize the project with vLLM support.
-- [ ] Add support for streaming inference.
+- [x] Add support for streaming inference.
+
+## Streaming CLI (sentence-level, REPL, live playback)
+
+A lightweight command-line interface is available at `cli/streaming.py` for
+sentence-level streaming inference. It supports both one-shot runs and an
+interactive REPL, optional reference prompt WAVs, live playback, and a
+persistent prompt-feature cache to avoid re-extracting prompt embeddings.
+
+Key flags:
+
+- `--model_path` (required): path to the model directory (e.g. `pretrained_models/SoulX-Podcast-1.7B`).
+- `--text`: run a one-shot generation from provided text. Use newlines for multiple turns.
+- `--repl`: start an interactive REPL that waits for lines of input (empty line to quit).
+-- `--play`: play back generated audio live (no file save). The playback libraries `sounddevice` or `simpleaudio` are optional and not bundled by default; install one of them to enable live playback.
+- `--reference_wav`: path to a WAV used as the reference/sample voice for all speakers.
+- `--precache_prompts`: precompute features for prompt WAVs at startup.
+- `--clear_cache`: clear the prompt-feature cache before running.
+- `--timings`: enable per-stage timing collection and print a summary after the run.
+
+By default, if you don't provide a prompt WAV the CLI prefers the repository
+female sample at `example/audios/female_mandarin.wav` when present. Computed
+prompt features (speaker embedding, log-mel / flow-mel arrays) are cached in
+memory and persisted on-disk under `.prompt_cache/` to speed up repeated runs.
+
+Quick examples (PowerShell):
+
+```powershell
+# One-shot (playback):
+python .\cli\streaming.py --model_path pretrained_models/SoulX-Podcast-1.7B --text "[S1]Hello world. How are you?" --play
+
+# Start REPL (interactive):
+python .\cli\streaming.py --model_path pretrained_models/SoulX-Podcast-1.7B --repl --play
+
+# One-shot with timings and cache precache:
+python .\cli\streaming.py --model_path pretrained_models/SoulX-Podcast-1.7B --text "[S1]Quick test." --timings --precache_prompts
+```
+
+Notes:
+
+- If playback libraries are not installed the CLI will still run and save to
+  file. To enable `--play`, install either `sounddevice` or `simpleaudio`.
+
+- Packaging / optional extras: if you publish or consume this project as a
+  package you can declare a packaging extra so downstream users can install
+  playback support with a single flag. Example (in `setup.cfg` or `pyproject.toml`):
+
+```ini
+[options.extras_require]
+play =
+    sounddevice
+    simpleaudio
+```
+
+Or install directly with pip:
+
+```powershell
+pip install sounddevice simpleaudio
+```
+- Use `--timings` to get a short report that shows time spent in prompt
+  feature extraction stages (useful to decide whether process-based precache
+  or further optimizations are necessary).
+
 
 ## Citation
 
