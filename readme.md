@@ -37,6 +37,7 @@ To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podc
 - **Cross-dialectal, zero-shot voice cloning**: SoulX-Podcast supports zero-shot voice cloning across different Chinese dialects, enabling the generation of high-quality, personalized speech in any of the supported dialects.
 
   - **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, such as ***laughter*** and ***sighs*** to enhance the realism of synthesized results.
+  - **Paralinguistic tags**: <|laughter|>, <|sigh|>, <|breathing|>, <|coughing|>, <|throat_clearing|>.
 
 <table align="center">
   <tr>
@@ -82,6 +83,7 @@ For more examples, see [demo page](https://soul-ailab.github.io/soulx-podcast/).
 
 
 ## 🚀 News
+- **[2025-11-03]** Support vllm with docker.
 - **[2025-10-31]** Deploy an online demo on [Hugging Face Spaces](https://huggingface.co/Soul-AILab/spaces).
 
 - **[2025-10-30]** Add example scripts for monologue TTS and support a WebUI for easy inference.
