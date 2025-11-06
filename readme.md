@@ -37,7 +37,7 @@ To meet the higher naturalness demands of multi-turn spoken dialogue, SoulX-Podc
 - **Cross-dialectal, zero-shot voice cloning**: SoulX-Podcast supports zero-shot voice cloning across different Chinese dialects, enabling the generation of high-quality, personalized speech in any of the supported dialects.
 
 - **Paralinguistic controls**: SoulX-Podcast supports a variety of paralinguistic events, as as ***laugher*** and ***sighs*** to enhance the realism of synthesized results.
--  <|laughter|>, <|sigh|>, <|breathing|>, <|coughing|>, <|throat_clearing|> .
+- **Paralinguistic tags**: <|laughter|>, <|sigh|>, <|breathing|>, <|coughing|>, <|throat_clearing|> .
 
 <table align="center">
   <tr>
