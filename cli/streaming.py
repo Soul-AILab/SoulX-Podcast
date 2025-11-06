@@ -23,7 +23,7 @@ DEFAULT_PROMPT_WAV = str((_REPO_ROOT / DEFAULT_PROMPT_REL))
 from soulxpodcast.utils.parser import podcast_format_parser
 from soulxpodcast.utils.infer_utils import initiate_model, process_single_input
 from soulxpodcast.utils.prompt_cache import PROMPT_FEATURE_CACHE
-from soulxpodcast.utils.timing import TIMING_COLLECTOR
+from soulxpodcast.utils.timing import TIMING_COLLECTOR, Timer
 import tempfile
 import atexit
 import concurrent.futures
@@ -182,6 +182,11 @@ def run_streaming_inference(
     model, dataset = initiate_model(seed, model_path, llm_engine, fp16_flow)
     ui("Model loaded — ready for inference.")
 
+    # record total run time when --timings is enabled
+    if TIMING_COLLECTOR.enabled:
+        total_timer = Timer('total_run')
+        total_timer.__enter__()
+
     # Handle cache control
     if clear_cache:
         PROMPT_FEATURE_CACHE.clear()
@@ -236,7 +241,9 @@ def run_streaming_inference(
             temp_inputs['use_dialect_prompt'],
             temp_inputs.get('dialect_prompt_text', []),
         )
-        results = model.forward_longform(**data)
+        # model inference timing
+        with Timer('model_forward'):
+            results = model.forward_longform(**data)
         out_arrs = []
         for wav in results.get("generated_wavs", []):
             arr = wav.cpu().squeeze(0).numpy()
@@ -287,6 +294,13 @@ def run_streaming_inference(
         except Exception:
             pass
 
+    # finish total run timer if enabled
+    if TIMING_COLLECTOR.enabled:
+        try:
+            total_timer.__exit__(None, None, None)
+        except Exception:
+            pass
+
     print(f"[INFO] Streaming synthesis completed{'' if not save_to_file else ' — output at: ' + output_path}")
 
 
@@ -307,7 +321,8 @@ def synthesize_sentences(model, dataset, inputs, sentences, sf_handle, play, sam
         except Exception as e:
             print(f"[ERROR] Failed to process input for sentence '{sent}': {e}")
             return []
-        results = model.forward_longform(**data)
+        with Timer('model_forward'):
+            results = model.forward_longform(**data)
         out = []
         for wav in results.get("generated_wavs", []):
             arr = wav.cpu().squeeze(0).numpy()
@@ -500,7 +515,9 @@ def interactive_repl(model_path: str, output_path: str, llm_engine: str, fp16_fl
 
                     # run model (this is where GPU is used)
                     try:
-                        results = model.forward_longform(**data)
+                        # model inference timing
+                        with Timer('model_forward'):
+                            results = model.forward_longform(**data)
                     except Exception as e:
                         print(f"[ERROR] Model generation failed for '{sent}': {e}")
                         continue

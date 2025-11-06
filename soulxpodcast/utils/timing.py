@@ -41,8 +41,8 @@ class TimingCollector:
                 total += s
                 cnt = len(v)
                 avg = s / cnt if cnt else 0.0
-                out.write(f"{k}: total={s:.3f}s count={cnt} avg={avg:.3f}s\n")
-            out.write(f"total: {total:.3f}s\n")
+                out.write(f"{k}: total={_format_seconds_compact(s)} count={cnt} avg={_format_seconds_compact(avg)} ({s:.3f}s/{avg:.3f}s)\n")
+            out.write(f"total: {_format_seconds_compact(total)} ({total:.3f}s)\n")
 
 
 TIMING_COLLECTOR = TimingCollector()
@@ -65,3 +65,44 @@ class Timer:
         except Exception:
             # timing should never raise
             pass
+
+
+def _format_seconds_compact(seconds: float, precision: int = 6) -> str:
+    """Return a compact human-readable duration string that omits larger
+    zero-valued time units.
+
+    Examples:
+      20.760638 -> "20.760638s"
+      0.123 -> "123ms"
+      61.5 -> "1m 1.500000s"
+    """
+    if seconds is None:
+        return "0s"
+    # Work with floats; produce days/hours/minutes and remaining seconds
+    secs = float(seconds)
+    days = int(secs // 86400)
+    secs -= days * 86400
+    hours = int(secs // 3600)
+    secs -= hours * 3600
+    minutes = int(secs // 60)
+    secs -= minutes * 60
+
+    parts: list[str] = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+
+    # secs may be fractional
+    if secs >= 1 or not parts:
+        # show seconds with requested precision, trim trailing zeros
+        sec_str = f"{secs:.{precision}f}".rstrip("0").rstrip(".")
+        parts.append(f"{sec_str}s")
+    else:
+        # less than 1 second and we already showed larger units -> show ms
+        ms = int(round(secs * 1000))
+        parts.append(f"{ms}ms")
+
+    return " ".join(parts)
