@@ -1,16 +1,22 @@
 import re
+import os
+import zipfile
+from collections import defaultdict
 import gradio as gr
 from tqdm import tqdm
 from argparse import ArgumentParser
-from typing import Literal, List, Tuple
+from typing import Literal, List, Tuple, Optional
 import sys
 import importlib.util
 from datetime import datetime
+import tempfile
+import shutil
 
 import torch
 import numpy as np  
 import random    
 import s3tokenizer
+import soundfile as sf
 
 from soulxpodcast.models.soulxpodcast import SoulXPodcast
 from soulxpodcast.config import Config, SoulXPodcastLLMConfig, SamplingParams
@@ -267,6 +273,95 @@ _i18n_key2lang_dict = dict(
         en="Delete Selected",
         zh="批量删除选中",
     ),
+    # Separated audio files info
+    separated_files_info_label=dict(
+        en="Separated Audio Files Info",
+        zh="分离音频文件信息",
+    ),
+    separated_files_info_placeholder=dict(
+        en="Separated speaker audio files will be saved in outputs/separated_speakers/ directory",
+        zh="分离的说话者音频文件将保存在 outputs/separated_speakers/ 目录下",
+    ),
+    # Download files
+    download_all_files_label=dict(
+        en="Download All Audio Files (ZIP)",
+        zh="下载所有音频文件 (ZIP)",
+    ),
+    # File info messages
+    files_saved_to=dict(
+        en="Audio files saved to:",
+        zh="音频文件已保存到:",
+    ),
+    files_generated_count=dict(
+        en="Files generated this time (total: {count}):",
+        zh="本次生成的文件 (共 {count} 个):",
+    ),
+    complete_dialogue_audio=dict(
+        en="Complete Dialogue Audio",
+        zh="整体对话音频",
+    ),
+    speaker_label=dict(
+        en="Speaker {num}",
+        zh="说话者 {num}",
+    ),
+    complete_audio_label=dict(
+        en="(Complete Audio)",
+        zh="(完整音频)",
+    ),
+    zip_file_created=dict(
+        en="Zip file created: {filename}",
+        zh="压缩包已创建: {filename}",
+    ),
+    download_hint=dict(
+        en="(You can download all files below)",
+        zh="(可在下方下载所有文件)",
+    ),
+    no_files_saved=dict(
+        en="(No files saved, may be disabled or error occurred)",
+        zh="（未保存文件，可能已禁用或出现错误）",
+    ),
+    # Different speaker pause
+    diff_spk_pause_label=dict(
+        en="Different-speaker pause (ms)",
+        zh="不同说话者间停顿(ms)",
+    ),
+    # Log messages (for console)
+    log_saved_complete_dialogue=dict(
+        en="Saved complete dialogue audio",
+        zh="已保存整体对话音频",
+    ),
+    log_saved_speaker_complete=dict(
+        en="Saved speaker {num} complete audio",
+        zh="已保存说话者 {num} 完整音频",
+    ),
+    log_saved_speaker_part=dict(
+        en="Saved speaker {num} part {part}",
+        zh="已保存说话者 {num} 片段 {part}",
+    ),
+    log_all_files_saved=dict(
+        en="All audio files saved to: {dir}",
+        zh="所有音频文件已保存到: {dir}",
+    ),
+    log_total_files_saved=dict(
+        en="Total {count} files saved",
+        zh="共保存 {count} 个文件",
+    ),
+    log_file_added_to_zip=dict(
+        en="Added file to zip: {filename}",
+        zh="已添加文件到压缩包: {filename}",
+    ),
+    log_zip_created=dict(
+        en="Zip file created: {filename}",
+        zh="压缩包已创建: {filename}",
+    ),
+    log_error_saving_files=dict(
+        en="Error saving audio files: {error}",
+        zh="保存音频文件时出错: {error}",
+    ),
+    log_error_creating_zip=dict(
+        en="Error creating zip file: {error}",
+        zh="创建压缩包时出错: {error}",
+    ),
 )
 
 
@@ -391,10 +486,16 @@ def dialogue_synthesis_function(
     speaker_configs_list: List[Tuple[str, str, str]],  # List of (prompt_text, prompt_audio, dialect_prompt_text)
     seed: int = 1988,
     diff_spk_pause_ms: int = 0,
+    output_dir: Optional[str] = None,
+    save_separated: bool = True,
+    timestamp: Optional[str] = None,
 ):
     """
     合成对话音频
     speaker_configs_list: 说话人配置列表，每个元素为 (prompt_text, prompt_audio, dialect_prompt_text)
+    output_dir: 输出目录，用于保存分离的说话者音频文件
+    save_separated: 是否保存分离的说话者音频文件
+    timestamp: 时间戳（如果不提供则自动生成）
     """
     seed = int(seed)
     torch.manual_seed(seed)
@@ -496,8 +597,35 @@ def dialogue_synthesis_function(
     target_audio = None
     sample_rate = 24000
     num_segments = len(results_dict['generated_wavs'])
+    saved_files = []  # 保存生成的文件路径列表
+    
+    # 验证片段数量是否匹配
+    if num_segments != len(spk_seq):
+        print(f"[WARNING] 音频片段数量 ({num_segments}) 与说话者序列长度 ({len(spk_seq)}) 不匹配")
+    
+    # 按顺序记录生成的音频片段
+    ordered_segment_infos: List[dict] = []
+    speaker_part_counter: dict[int, int] = defaultdict(int)
+    
     for i in range(num_segments):
         seg = results_dict['generated_wavs'][i]
+        
+        # 记录每个片段属于哪个说话者（spk_seq 是1-based的，S1=1, S2=2等）
+        if i < len(spk_seq):
+            current_speaker = spk_seq[i]
+            if current_speaker > 0:  # 确保说话者编号有效
+                speaker_part_counter[current_speaker] += 1
+                part_idx = speaker_part_counter[current_speaker]
+                # 保存音频片段（深拷贝以避免设备问题）
+                seg_copy = seg.clone().detach()
+                ordered_segment_infos.append({
+                    "turn_index": i,
+                    "speaker": current_speaker,
+                    "part_idx": part_idx,
+                    "audio": seg_copy,
+                })
+        
+        # 合并到整体音频
         if target_audio is None:
             target_audio = seg
         else:
@@ -519,7 +647,89 @@ def dialogue_synthesis_function(
                     silence = torch.zeros((1, silence_len), dtype=seg.dtype, device=seg.device)
                     target_audio = torch.concat([target_audio, silence], dim=1)
             target_audio = torch.concat([target_audio, seg], dim=1)
-    return (sample_rate, target_audio.cpu().squeeze(0).numpy())
+    
+    # 保存音频文件
+    if save_separated and output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            if timestamp is None:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 文件序号计数器（从1开始）
+            file_counter = 1
+            
+            # 保存整体音频文件（包含所有说话者的连贯音频，不参与编号）
+            if target_audio is not None:
+                complete_audio_filename = os.path.join(output_dir, f"complete_dialogue_{timestamp}.wav")
+                sf.write(complete_audio_filename, target_audio.cpu().squeeze(0).numpy(), sample_rate)
+                saved_files.append(complete_audio_filename)
+                print(f"[INFO] {i18n('log_saved_complete_dialogue')}: {complete_audio_filename}")
+            
+            # 按对话顺序保存分离的说话者音频片段
+            if ordered_segment_infos:
+                for seg_info in ordered_segment_infos:
+                    seg_audio_np = seg_info["audio"].cpu().squeeze(0).numpy()
+                    part_filename = os.path.join(
+                        output_dir,
+                        f"{file_counter:03d}_speaker{seg_info['speaker']}_part{seg_info['part_idx']}_{timestamp}.wav"
+                    )
+                    sf.write(part_filename, seg_audio_np, sample_rate)
+                    saved_files.append(part_filename)
+                    print(f"[INFO] {i18n('log_saved_speaker_part').format(num=seg_info['speaker'], part=seg_info['part_idx'])}: {part_filename}")
+                    file_counter += 1
+            
+            if saved_files:
+                print(f"[INFO] {i18n('log_all_files_saved').format(dir=output_dir)}")
+                print(f"[INFO] {i18n('log_total_files_saved').format(count=len(saved_files))}")
+        except Exception as e:
+            print(f"[ERROR] {i18n('log_error_saving_files').format(error=str(e))}")
+            import traceback
+            traceback.print_exc()
+    
+    return (sample_rate, target_audio.cpu().squeeze(0).numpy()), saved_files
+
+
+def create_zip_file(file_list: List[str], output_dir: str, timestamp: str = None, file_number: int = None) -> Optional[str]:
+    """
+    创建包含所有文件的 zip 压缩包
+    
+    Args:
+        file_list: 要打包的文件路径列表
+        output_dir: 输出目录
+        timestamp: 时间戳（如果不提供则自动生成）
+        file_number: 文件序号（用于文件名前缀）
+    
+    Returns:
+        zip 文件路径，如果失败则返回 None
+    """
+    if not file_list:
+        return None
+    
+    try:
+        if timestamp is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # 如果提供了文件序号，则在文件名前添加序号前缀
+        if file_number is not None:
+            zip_filename = os.path.join(output_dir, f"{file_number:03d}_all_audio_files_{timestamp}.zip")
+        else:
+            zip_filename = os.path.join(output_dir, f"all_audio_files_{timestamp}.zip")
+        
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in file_list:
+                if os.path.exists(file_path):
+                    # 只保存文件名，不包含完整路径
+                    arcname = os.path.basename(file_path)
+                    zipf.write(file_path, arcname)
+                    print(f"[INFO] {i18n('log_file_added_to_zip').format(filename=arcname)}")
+        
+        print(f"[INFO] {i18n('log_zip_created').format(filename=zip_filename)}")
+        return zip_filename
+    except Exception as e:
+        print(f"[ERROR] {i18n('log_error_creating_zip').format(error=str(e))}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def update_example_choices(dialect_key: str):
@@ -825,7 +1035,7 @@ def render_interface() -> gr.Blocks:
                 size="lg",
             )
             diff_spk_pause_input = gr.Number(
-                label="不同说话者间停顿(ms) / Different-speaker pause (ms)",
+                label=i18n("diff_spk_pause_label") if "diff_spk_pause_label" in _i18n_key2lang_dict else "不同说话者间停顿(ms) / Different-speaker pause (ms)",
                 value=0,
                 minimum=0,
                 step=50,
@@ -837,6 +1047,21 @@ def render_interface() -> gr.Blocks:
         generate_audio = gr.Audio(
             label=i18n("generated_audio_label"),
             interactive=False,
+        )
+        
+        # 显示分离音频文件保存信息
+        separated_files_info = gr.Textbox(
+            label=i18n("separated_files_info_label"),
+            placeholder=i18n("separated_files_info_placeholder"),
+            interactive=False,
+            lines=8,
+            visible=True,
+        )
+        
+        # 下载所有文件的文件组件
+        download_file = gr.File(
+            label=i18n("download_all_files_label"),
+            visible=False,
         )
 
 
@@ -853,7 +1078,96 @@ def render_interface() -> gr.Blocks:
                     text = speaker_args[i+1] if speaker_args[i+1] is not None else ""
                     dialect = speaker_args[i+2] if speaker_args[i+2] is not None else ""
                     speaker_configs.append((text, audio, dialect))
-            return dialogue_synthesis_function(target_text, speaker_configs, seed, int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0)
+            
+            # 创建输出目录
+            output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 生成统一的时间戳
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 生成音频
+            audio_result, saved_files = dialogue_synthesis_function(
+                target_text, 
+                speaker_configs, 
+                seed, 
+                int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
+                output_dir=output_dir,
+                save_separated=True,
+                timestamp=timestamp
+            )
+            
+            # 创建压缩包（zip文件序号为最后一个）
+            zip_file_path = None
+            if saved_files:
+                # zip文件的序号应该紧接最后一个分段音频
+                zip_file_number = len(saved_files)
+                zip_file_path = create_zip_file(saved_files, output_dir, timestamp, zip_file_number)
+            
+            # 收集保存的文件信息（使用国际化）
+            info_message = f"{i18n('files_saved_to')}\n{os.path.abspath(output_dir)}\n\n"
+            
+            # 显示保存的文件
+            if saved_files:
+                info_message += f"{i18n('files_generated_count').format(count=len(saved_files))}\n\n"
+                
+                # 显示整体音频文件
+                complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
+                if complete_files:
+                    info_message += f"📁 {i18n('complete_dialogue_audio')}:\n"
+                    for f in complete_files:
+                        info_message += f"  • {os.path.basename(f)}\n"
+                    info_message += "\n"
+                
+                # 按说话者编号分组显示
+                speaker_groups = {}
+                for f in saved_files:
+                    basename = os.path.basename(f)
+                    if "speaker" in basename and "complete_dialogue" not in basename:
+                        # 提取说话者编号（speaker1, speaker2等）
+                        import re
+                        match = re.search(r'speaker(\d+)', basename)
+                        if match:
+                            spk_num = match.group(1)
+                            if spk_num not in speaker_groups:
+                                speaker_groups[spk_num] = []
+                            speaker_groups[spk_num].append(basename)
+                
+                # 按说话者编号排序显示
+                for spk_num in sorted(speaker_groups.keys(), key=int):
+                    files = sorted(speaker_groups[spk_num])
+                    # 区分完整音频和片段
+                    complete_audio = [f for f in files if "_complete_" in f]
+                    parts = [f for f in files if "_part" in f]
+                    
+                    info_message += f"🎤 {i18n('speaker_label').format(num=spk_num)}:\n"
+                    if complete_audio:
+                        for filename in complete_audio:
+                            info_message += f"  • {filename} {i18n('complete_audio_label')}\n"
+                    if parts:
+                        for filename in sorted(parts):
+                            info_message += f"  • {filename}\n"
+                    info_message += "\n"
+                
+                if zip_file_path:
+                    info_message += f"📦 {i18n('zip_file_created').format(filename=os.path.basename(zip_file_path))}\n"
+                    info_message += f"   {i18n('download_hint')}\n"
+            else:
+                info_message += f"{i18n('no_files_saved')}\n"
+            
+            # 返回结果：音频、信息、zip文件（如果存在则显示，否则隐藏）
+            download_file_update = None
+            if zip_file_path and os.path.exists(zip_file_path):
+                download_label = f"{i18n('download_all_files_label')} - {os.path.basename(zip_file_path)}"
+                download_file_update = gr.update(visible=True, value=zip_file_path, label=download_label)
+            else:
+                download_file_update = gr.update(visible=False, value=None)
+            
+            return (
+                audio_result, 
+                info_message,
+                download_file_update
+            )
         
         # 生成按钮点击事件
         all_speaker_inputs = []
@@ -873,7 +1187,7 @@ def render_interface() -> gr.Blocks:
                 diff_spk_pause_input,
                 *all_speaker_inputs,
             ],
-            outputs=[generate_audio],
+            outputs=[generate_audio, separated_files_info, download_file],
         )
         
         # 语言切换
@@ -914,13 +1228,21 @@ def render_interface() -> gr.Blocks:
                 gr.update(value=f"☑️ {i18n('select_all_btn_label')}"),
                 gr.update(value=f"☐ {i18n('select_none_btn_label')}"),
                 gr.update(value=f"🗑️ {i18n('batch_delete_btn_label')}"),
+                # 新增的分离文件和下载组件
+                gr.update(
+                    label=i18n("separated_files_info_label"),
+                    placeholder=i18n("separated_files_info_placeholder"),
+                ),
+                gr.update(label=i18n("download_all_files_label")),
+                # 不同说话者间停顿标签
+                gr.update(label=i18n("diff_spk_pause_label")),
             ])
             return updates
         
         lang_choice.change(
             fn=_change_component_language,
             inputs=[lang_choice],
-            outputs=speaker_checkbox_list + all_speaker_inputs + [dialogue_text_input, generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn],
+            outputs=speaker_checkbox_list + all_speaker_inputs + [dialogue_text_input, generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
         )
     return page
 
