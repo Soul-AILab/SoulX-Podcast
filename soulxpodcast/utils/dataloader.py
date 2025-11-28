@@ -13,6 +13,8 @@ import s3tokenizer
 
 from soulxpodcast.utils.text import normalize_text
 from soulxpodcast.utils.audio import mel_spectrogram, audio_volume_normalize
+from soulxpodcast.utils.prompt_cache import PROMPT_FEATURE_CACHE
+from soulxpodcast.utils.timing import Timer, TIMING_COLLECTOR
 from soulxpodcast.config import Config, SamplingParams
 
 
@@ -90,30 +92,76 @@ class PodcastDataset(Dataset):
             dialect_prefix_list = []
             dialect_prefix_list.append(self.text_tokenizer.encode(f"{TASK_PODCAST}"))
             for spk_idx, (prompt_text, prompt_wav) in enumerate(zip(data["prompt_text"], data["prompt_wav"])):
-                # 1. feature for s3tokenizer
-                audio = s3tokenizer.load_audio(prompt_wav, sr=16000)  
-                audio = audio_volume_normalize(audio)
-                # [T]
-                log_mel = s3tokenizer.log_mel_spectrogram(audio)  # [num_mels, T]
+                # Try cache first (avoids repeated audio loading / feature extraction)
+                # Try to load a persisted entry from disk if memory cache miss
+                cached = PROMPT_FEATURE_CACHE.get(prompt_wav)
+                if cached is None:
+                    try:
+                        cached = PROMPT_FEATURE_CACHE.load_entry_if_exists(prompt_wav)
+                    except Exception:
+                        cached = None
 
-                # 2. feature for speaker embedding
-                spk_feat = kaldi.fbank(audio.unsqueeze(0), num_mel_bins=80, dither=0, sample_frequency=16000)
-                spk_feat = spk_feat - spk_feat.mean(dim=0, keepdim=True)
-                spk_emb = self.spk_model.run(
-                    None, {self.spk_model.get_inputs()[0].name: spk_feat.unsqueeze(dim=0).cpu().numpy()}
-                )[0].flatten().tolist()
+                if cached is not None:
+                    # debug log for cache hit
+                    try:
+                        from datetime import datetime
+                        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S,%f')[:-3]
+                        tqdm.write(f'[{timestamp}] - [cache hit] using precomputed prompt features: {prompt_wav}')
+                    except Exception:
+                        pass
+                    # record a quick cache hit metric
+                    TIMING_COLLECTOR.record('cache_hit', 0.0)
 
-                # 3. feature for flow
-                audio, sample_rate = torchaudio.load(prompt_wav, backend='soundfile')
-                audio = audio[0]
-                audio = audio_volume_normalize(audio).unsqueeze(0)
-                # audio = audio.mean(dim=0, keepdim=True)  # [1, T]
-                if sample_rate != 24000:
-                    audio = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=24000)(audio)
-                mel = mel_spectrogram(audio).transpose(1, 2).squeeze(0)  # [T, num_mels]
-                if mel.shape[0] %2 !=0:
-                    mel = mel[:-1]
-                mel_len = mel.shape[0]
+                    # cached keys: audio_16k, log_mel, mel, mel_len, spk_emb
+                    log_mel = cached["log_mel"]
+                    spk_emb = cached["spk_emb"]
+                    mel = cached["mel"]
+                    mel_len = cached["mel_len"]
+                else:
+                    # 1. feature for s3tokenizer (log mel at 16k)
+                    with Timer('feature_load'):
+                        audio = s3tokenizer.load_audio(prompt_wav, sr=16000)
+                        audio = audio_volume_normalize(audio)
+                        # [T]
+                        log_mel = s3tokenizer.log_mel_spectrogram(audio)  # [num_mels, T]
+
+                    # 2. feature for speaker embedding
+                    with Timer('spk_embed'):
+                        spk_feat = kaldi.fbank(audio.unsqueeze(0), num_mel_bins=80, dither=0, sample_frequency=16000)
+                        spk_feat = spk_feat - spk_feat.mean(dim=0, keepdim=True)
+                        spk_emb = self.spk_model.run(
+                            None, {self.spk_model.get_inputs()[0].name: spk_feat.unsqueeze(dim=0).cpu().numpy()}
+                        )[0].flatten().tolist()
+
+                    # 3. feature for flow (mel at 24k)
+                    with Timer('flow_mel'):
+                        audio_flow, sample_rate = torchaudio.load(prompt_wav, backend='soundfile')
+                        audio_flow = audio_flow[0]
+                        audio_flow = audio_volume_normalize(audio_flow).unsqueeze(0)
+                        if sample_rate != 24000:
+                            audio_flow = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=24000)(audio_flow)
+                        mel = mel_spectrogram(audio_flow).transpose(1, 2).squeeze(0)  # [T, num_mels]
+                        if mel.shape[0] % 2 != 0:
+                            mel = mel[:-1]
+                        mel_len = mel.shape[0]
+
+                    # store into cache for future reuse
+                    try:
+                        PROMPT_FEATURE_CACHE.add(prompt_wav, {
+                            "audio_16k": audio.cpu() if hasattr(audio, "cpu") else audio,
+                            "log_mel": log_mel.cpu() if hasattr(log_mel, "cpu") else log_mel,
+                            "mel": mel.cpu() if hasattr(mel, "cpu") else mel,
+                            "mel_len": mel_len,
+                            "spk_emb": spk_emb,
+                        })
+                        # persist speaker embedding and features for future sessions
+                        try:
+                            PROMPT_FEATURE_CACHE.persist_entry(prompt_wav)
+                        except Exception:
+                            pass
+                    except Exception:
+                        # Avoid failing dataset construction if cache save fails
+                        pass
                 
                 # 4. feature for llm
                 prompt_text = normalize_text(prompt_text) # remove some space and strange character
