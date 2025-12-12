@@ -1018,14 +1018,35 @@ def render_interface() -> gr.Blocks:
             outputs=[speakers_state] + all_speaker_outputs_for_delete + speaker_columns
         )
 
+        # 多输入框配置
+        MAX_TEXT_INPUTS = 10
+        num_text_inputs_state = gr.State(value=1)  # 当前输入框数量
+        
         with gr.Row():
-            with gr.Column(scale=1):
+            num_text_inputs_selector = gr.Number(
+                label="输入框数量",
+                value=1,
+                minimum=1,
+                maximum=MAX_TEXT_INPUTS,
+                step=1,
+                precision=0,
+                interactive=True,
+                scale=1,
+            )
+        
+        # 创建多个文本输入框
+        dialogue_text_inputs_list = []
+        dialogue_text_inputs_container = gr.Column()
+        with dialogue_text_inputs_container:
+            for i in range(MAX_TEXT_INPUTS):
                 dialogue_text_input = gr.Textbox(
-                    label=i18n("dialogue_text_input_label"),
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}",
                     placeholder=i18n("dialogue_text_input_placeholder"),
-                    lines=18,
+                    lines=12,
+                    visible=(i < 1),
                 )
-
+                dialogue_text_inputs_list.append(dialogue_text_input)
+        
         # Generate button
         with gr.Row():
             generate_btn = gr.Button(
@@ -1063,16 +1084,33 @@ def render_interface() -> gr.Blocks:
             label=i18n("download_all_files_label"),
             visible=False,
         )
+        
+        # 更新输入框数量和可见性
+        def update_text_inputs_visibility(num_inputs):
+            """更新文本输入框的可见性"""
+            num = int(num_inputs) if num_inputs else 1
+            num = max(1, min(num, MAX_TEXT_INPUTS))
+            updates = []
+            for i in range(MAX_TEXT_INPUTS):
+                updates.append(gr.update(
+                    visible=(i < num),
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}"
+                ))
+            return num, *updates
+        
+        num_text_inputs_selector.change(
+            fn=update_text_inputs_visibility,
+            inputs=[num_text_inputs_selector],
+            outputs=[num_text_inputs_state] + dialogue_text_inputs_list
+        )
 
 
-        # 收集说话人配置的包装函数
-        def collect_and_synthesize(target_text, num_speakers, seed, diff_spk_pause_ms, *speaker_args):
-            """收集所有说话人配置并调用合成函数"""
-            # speaker_args格式: (audio1, text1, dialect1, audio2, text2, dialect2, ...)
-            # 只收集可见的说话人（前num_speakers个）
+        # 处理单个合成任务
+        def process_single_synthesis(target_text, num_speakers, seed, diff_spk_pause_ms, speaker_args):
+            """处理单个合成任务"""
+            # 收集说话人配置
             speaker_configs = []
-            num = int(num_speakers)
-            for i in range(0, min(num * 3, len(speaker_args)), 3):
+            for i in range(0, min(num_speakers * 3, len(speaker_args)), 3):
                 if i + 2 < len(speaker_args):
                     audio = speaker_args[i] if speaker_args[i] is not None else None
                     text = speaker_args[i+1] if speaker_args[i+1] is not None else ""
@@ -1098,79 +1136,144 @@ def render_interface() -> gr.Blocks:
                 timestamp=timestamp
             )
             
-            # 创建压缩包（zip文件序号为最后一个）
+            # 创建压缩包
             zip_file_path = None
             if saved_files:
-                # zip文件的序号应该紧接最后一个分段音频
                 zip_file_number = len(saved_files)
                 zip_file_path = create_zip_file(saved_files, output_dir, timestamp, zip_file_number)
             
-            # 收集保存的文件信息（使用国际化）
-            info_message = f"{i18n('files_saved_to')}\n{os.path.abspath(output_dir)}\n\n"
+            return audio_result, saved_files, zip_file_path, output_dir
+        
+        # 收集说话人配置的包装函数（支持队列处理）
+        def collect_and_synthesize_queue(
+            num_text_inputs, num_speakers, seed, diff_spk_pause_ms, 
+            *all_text_and_speaker_args
+        ):
+            """
+            处理队列中的所有任务
+            all_text_and_speaker_args格式: (text1, text2, ..., textN, audio1, text1, dialect1, audio2, text2, dialect2, ...)
+            """
+            num_text = int(num_text_inputs) if num_text_inputs else 1
+            num_speaker = int(num_speakers)
             
-            # 显示保存的文件
-            if saved_files:
-                info_message += f"{i18n('files_generated_count').format(count=len(saved_files))}\n\n"
+            # 提取所有文本输入
+            text_inputs = list(all_text_and_speaker_args[:MAX_TEXT_INPUTS])
+            # 提取说话人参数
+            speaker_args = list(all_text_and_speaker_args[MAX_TEXT_INPUTS:])
+            
+            # 过滤出非空的文本输入
+            valid_texts = []
+            valid_indices = []
+            for i, text in enumerate(text_inputs[:num_text]):
+                if text and text.strip():
+                    valid_texts.append(text)
+                    valid_indices.append(i)
+            
+            if not valid_texts:
+                return (
+                    None,
+                    "所有输入框均为空，请至少填写一个文本输入",
+                    gr.update(visible=False),
+                    gr.update(interactive=True)
+                )
+            
+            # 使用进度条显示队列处理进度
+            progress_bar = gr.Progress(track_tqdm=True)
+            all_results = []
+            all_info_messages = []
+            last_audio_result = None
+            last_zip_file_path = None
+            
+            # 循环处理所有任务
+            for task_idx, (text_idx, target_text) in enumerate(zip(valid_indices, valid_texts)):
+                progress_bar((task_idx, len(valid_texts)), desc=f"处理任务 {task_idx + 1}/{len(valid_texts)}")
                 
-                # 显示整体音频文件
-                complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
-                if complete_files:
-                    info_message += f"📁 {i18n('complete_dialogue_audio')}:\n"
-                    for f in complete_files:
-                        info_message += f"  • {os.path.basename(f)}\n"
-                    info_message += "\n"
-                
-                # 按说话者编号分组显示
-                speaker_groups = {}
-                for f in saved_files:
-                    basename = os.path.basename(f)
-                    if "speaker" in basename and "complete_dialogue" not in basename:
-                        # 提取说话者编号（speaker1, speaker2等）
-                        import re
-                        match = re.search(r'speaker(\d+)', basename)
-                        if match:
-                            spk_num = match.group(1)
-                            if spk_num not in speaker_groups:
-                                speaker_groups[spk_num] = []
-                            speaker_groups[spk_num].append(basename)
-                
-                # 按说话者编号排序显示
-                for spk_num in sorted(speaker_groups.keys(), key=int):
-                    files = sorted(speaker_groups[spk_num])
-                    # 区分完整音频和片段
-                    complete_audio = [f for f in files if "_complete_" in f]
-                    parts = [f for f in files if "_part" in f]
+                try:
+                    audio_result, saved_files, zip_file_path, output_dir = process_single_synthesis(
+                        target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args
+                    )
                     
-                    info_message += f"🎤 {i18n('speaker_label').format(num=spk_num)}:\n"
-                    if complete_audio:
-                        for filename in complete_audio:
-                            info_message += f"  • {filename} {i18n('complete_audio_label')}\n"
-                    if parts:
-                        for filename in sorted(parts):
-                            info_message += f"  • {filename}\n"
-                    info_message += "\n"
-                
-                if zip_file_path:
-                    info_message += f"📦 {i18n('zip_file_created').format(filename=os.path.basename(zip_file_path))}\n"
-                    info_message += f"   {i18n('download_hint')}\n"
-            else:
-                info_message += f"{i18n('no_files_saved')}\n"
+                    last_audio_result = audio_result
+                    last_zip_file_path = zip_file_path
+                    
+                    # 构建任务信息
+                    info_message = f"═══════════════════════════════════\n"
+                    info_message += f"任务 {task_idx + 1}/{len(valid_texts)} (输入框 {text_idx + 1})\n"
+                    info_message += f"═══════════════════════════════════\n"
+                    info_message += f"{i18n('files_saved_to')}\n{os.path.abspath(output_dir)}\n\n"
+                    
+                    if saved_files:
+                        info_message += f"{i18n('files_generated_count').format(count=len(saved_files))}\n\n"
+                        
+                        # 显示整体音频文件
+                        complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
+                        if complete_files:
+                            info_message += f"📁 {i18n('complete_dialogue_audio')}:\n"
+                            for f in complete_files:
+                                info_message += f"  • {os.path.basename(f)}\n"
+                            info_message += "\n"
+                        
+                        # 按说话者编号分组显示
+                        speaker_groups = {}
+                        for f in saved_files:
+                            basename = os.path.basename(f)
+                            if "speaker" in basename and "complete_dialogue" not in basename:
+                                match = re.search(r'speaker(\d+)', basename)
+                                if match:
+                                    spk_num = match.group(1)
+                                    if spk_num not in speaker_groups:
+                                        speaker_groups[spk_num] = []
+                                    speaker_groups[spk_num].append(basename)
+                        
+                        # 按说话者编号排序显示
+                        for spk_num in sorted(speaker_groups.keys(), key=int):
+                            files = sorted(speaker_groups[spk_num])
+                            complete_audio = [f for f in files if "_complete_" in f]
+                            parts = [f for f in files if "_part" in f]
+                            
+                            info_message += f"🎤 {i18n('speaker_label').format(num=spk_num)}:\n"
+                            if complete_audio:
+                                for filename in complete_audio:
+                                    info_message += f"  • {filename} {i18n('complete_audio_label')}\n"
+                            if parts:
+                                for filename in sorted(parts):
+                                    info_message += f"  • {filename}\n"
+                            info_message += "\n"
+                        
+                        if zip_file_path:
+                            info_message += f"📦 {i18n('zip_file_created').format(filename=os.path.basename(zip_file_path))}\n"
+                            info_message += f"   {i18n('download_hint')}\n"
+                    else:
+                        info_message += f"{i18n('no_files_saved')}\n"
+                    
+                    all_info_messages.append(info_message)
+                    
+                except Exception as e:
+                    error_msg = f"任务 {task_idx + 1} 处理失败: {str(e)}\n"
+                    all_info_messages.append(error_msg)
+                    import traceback
+                    traceback.print_exc()
             
-            # 返回结果：音频、信息、zip文件（如果存在则显示，否则隐藏）
+            # 合并所有任务的信息
+            final_info_message = "\n\n".join(all_info_messages)
+            final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
+            
+            # 返回最后一个任务的音频和zip文件
             download_file_update = None
-            if zip_file_path and os.path.exists(zip_file_path):
-                download_label = f"{i18n('download_all_files_label')} - {os.path.basename(zip_file_path)}"
-                download_file_update = gr.update(visible=True, value=zip_file_path, label=download_label)
+            if last_zip_file_path and os.path.exists(last_zip_file_path):
+                download_label = f"{i18n('download_all_files_label')} - {os.path.basename(last_zip_file_path)}"
+                download_file_update = gr.update(visible=True, value=last_zip_file_path, label=download_label)
             else:
                 download_file_update = gr.update(visible=False, value=None)
             
             return (
-                audio_result, 
-                info_message,
-                download_file_update
+                last_audio_result,
+                final_info_message,
+                download_file_update,
+                gr.update(interactive=True)  # 重新启用按钮
             )
         
-        # 生成按钮点击事件
+        # 生成按钮点击事件（支持队列）
         all_speaker_inputs = []
         for i in range(MAX_SPEAKERS):
             all_speaker_inputs.extend([
@@ -1180,15 +1283,19 @@ def render_interface() -> gr.Blocks:
             ])
         
         generate_btn.click(
-            fn=collect_and_synthesize,
-            inputs=[
-                dialogue_text_input,
-                speakers_state,
-                seed_input,
-                diff_spk_pause_input,
-                *all_speaker_inputs,
+            fn=collect_and_synthesize_queue,
+            inputs=(
+                [num_text_inputs_state] +
+                [speakers_state, seed_input, diff_spk_pause_input] +
+                dialogue_text_inputs_list +
+                all_speaker_inputs
+            ),
+            outputs=[
+                generate_audio, 
+                separated_files_info, 
+                download_file,
+                generate_btn
             ],
-            outputs=[generate_audio, separated_files_info, download_file],
         )
         
         # 语言切换
@@ -1214,12 +1321,14 @@ def render_interface() -> gr.Blocks:
                     ),
                 ])
             updates = checkbox_updates + input_updates
+            # 添加多文本输入框的更新
+            for i in range(MAX_TEXT_INPUTS):
+                updates.append(gr.update(
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}",
+                    placeholder=i18n("dialogue_text_input_placeholder"),
+                ))
             # 添加对话文本、生成按钮和音频输出
             updates.extend([
-                gr.update(
-                    label=i18n("dialogue_text_input_label"),
-                    placeholder=i18n("dialogue_text_input_placeholder"),
-                ),
                 gr.update(value=i18n("generate_btn_label")),
                 gr.update(label=i18n("generated_audio_label")),
                 # 添加/删除相关控件
@@ -1243,7 +1352,7 @@ def render_interface() -> gr.Blocks:
         lang_choice.change(
             fn=_change_component_language,
             inputs=[lang_choice],
-            outputs=speaker_checkbox_list + all_speaker_inputs + [dialogue_text_input, generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
+            outputs=speaker_checkbox_list + all_speaker_inputs + dialogue_text_inputs_list + [generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
         )
     return page
 
