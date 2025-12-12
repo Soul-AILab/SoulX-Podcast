@@ -1106,8 +1106,13 @@ def render_interface() -> gr.Blocks:
 
 
         # 处理单个合成任务
-        def process_single_synthesis(target_text, num_speakers, seed, diff_spk_pause_ms, speaker_args):
-            """处理单个合成任务"""
+        def process_single_synthesis(target_text, num_speakers, seed, diff_spk_pause_ms, speaker_args, task_number, base_output_dir, timestamp):
+            """
+            处理单个合成任务
+            task_number: 任务编号（从1开始），用于创建子文件夹（如 001, 002, 003）
+            base_output_dir: 基础输出目录（时间戳文件夹）
+            timestamp: 统一的时间戳
+            """
             # 收集说话人配置
             speaker_configs = []
             for i in range(0, min(num_speakers * 3, len(speaker_args)), 3):
@@ -1117,12 +1122,9 @@ def render_interface() -> gr.Blocks:
                     dialect = speaker_args[i+2] if speaker_args[i+2] is not None else ""
                     speaker_configs.append((text, audio, dialect))
             
-            # 生成统一的时间戳
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            
-            # 创建输出目录（在 separated_speakers 下创建时间戳子文件夹）
-            base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers")
-            output_dir = os.path.join(base_output_dir, timestamp)
+            # 创建任务编号子文件夹（如 001/, 002/, 003/）
+            task_subdir = f"{task_number:03d}"
+            output_dir = os.path.join(base_output_dir, task_subdir)
             os.makedirs(output_dir, exist_ok=True)
             
             # 生成音频
@@ -1177,6 +1179,13 @@ def render_interface() -> gr.Blocks:
                     gr.update(interactive=True)
                 )
             
+            # 生成统一的时间戳（所有任务共享同一个时间戳文件夹）
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 创建基础输出目录（时间戳文件夹）
+            base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers", timestamp)
+            os.makedirs(base_output_dir, exist_ok=True)
+            
             # 使用进度条显示队列处理进度
             progress_bar = gr.Progress(track_tqdm=True)
             all_results = []
@@ -1189,18 +1198,25 @@ def render_interface() -> gr.Blocks:
                 progress_bar((task_idx, len(valid_texts)), desc=f"处理任务 {task_idx + 1}/{len(valid_texts)}")
                 
                 try:
+                    # task_number 从1开始，用于创建子文件夹（001, 002, 003等）
+                    task_number = task_idx + 1
                     audio_result, saved_files, zip_file_path, output_dir = process_single_synthesis(
-                        target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args
+                        target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args,
+                        task_number, base_output_dir, timestamp
                     )
                     
                     last_audio_result = audio_result
                     last_zip_file_path = zip_file_path
                     
                     # 构建任务信息
+                    task_subdir_name = f"{task_number:03d}"
                     info_message = f"═══════════════════════════════════\n"
                     info_message += f"任务 {task_idx + 1}/{len(valid_texts)} (输入框 {text_idx + 1})\n"
                     info_message += f"═══════════════════════════════════\n"
-                    info_message += f"{i18n('files_saved_to')}\n{os.path.abspath(output_dir)}\n\n"
+                    info_message += f"{i18n('files_saved_to')}\n"
+                    info_message += f"基础文件夹: {os.path.abspath(base_output_dir)}\n"
+                    info_message += f"任务子文件夹: {task_subdir_name}/\n"
+                    info_message += f"完整路径: {os.path.abspath(output_dir)}\n\n"
                     
                     if saved_files:
                         info_message += f"{i18n('files_generated_count').format(count=len(saved_files))}\n\n"
@@ -1255,7 +1271,11 @@ def render_interface() -> gr.Blocks:
                     traceback.print_exc()
             
             # 合并所有任务的信息
-            final_info_message = "\n\n".join(all_info_messages)
+            final_info_message = f"📂 所有任务文件保存在统一的时间戳文件夹中:\n"
+            final_info_message += f"   {os.path.abspath(base_output_dir)}\n"
+            final_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n\n"
+            final_info_message += "═══════════════════════════════════\n\n"
+            final_info_message += "\n\n".join(all_info_messages)
             final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
             
             # 返回最后一个任务的音频和zip文件
