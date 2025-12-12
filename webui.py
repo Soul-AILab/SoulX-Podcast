@@ -660,7 +660,7 @@ def dialogue_synthesis_function(
             
             # 保存整体音频文件（包含所有说话者的连贯音频，不参与编号）
             if target_audio is not None:
-                complete_audio_filename = os.path.join(output_dir, f"complete_dialogue_{timestamp}.wav")
+                complete_audio_filename = os.path.join(output_dir, "complete_dialogue.wav")
                 sf.write(complete_audio_filename, target_audio.cpu().squeeze(0).numpy(), sample_rate)
                 saved_files.append(complete_audio_filename)
                 print(f"[INFO] {i18n('log_saved_complete_dialogue')}: {complete_audio_filename}")
@@ -671,7 +671,7 @@ def dialogue_synthesis_function(
                     seg_audio_np = seg_info["audio"].cpu().squeeze(0).numpy()
                     part_filename = os.path.join(
                         output_dir,
-                        f"{file_counter:03d}_speaker{seg_info['speaker']}_part{seg_info['part_idx']}_{timestamp}.wav"
+                        f"{file_counter:03d}_speaker{seg_info['speaker']}_part{seg_info['part_idx']}.wav"
                     )
                     sf.write(part_filename, seg_audio_np, sample_rate)
                     saved_files.append(part_filename)
@@ -711,9 +711,9 @@ def create_zip_file(file_list: List[str], output_dir: str, timestamp: str = None
         
         # 如果提供了文件序号，则在文件名前添加序号前缀
         if file_number is not None:
-            zip_filename = os.path.join(output_dir, f"{file_number:03d}_all_audio_files_{timestamp}.zip")
+            zip_filename = os.path.join(output_dir, f"{file_number:03d}_all_audio_files.zip")
         else:
-            zip_filename = os.path.join(output_dir, f"all_audio_files_{timestamp}.zip")
+            zip_filename = os.path.join(output_dir, "all_audio_files.zip")
         
         with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
             for file_path in file_list:
@@ -1079,12 +1079,13 @@ def render_interface() -> gr.Blocks:
                     dialect = speaker_args[i+2] if speaker_args[i+2] is not None else ""
                     speaker_configs.append((text, audio, dialect))
             
-            # 创建输出目录
-            output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers")
-            os.makedirs(output_dir, exist_ok=True)
-            
             # 生成统一的时间戳
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 创建输出目录（在 separated_speakers 下创建时间戳子文件夹）
+            base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers")
+            output_dir = os.path.join(base_output_dir, timestamp)
+            os.makedirs(output_dir, exist_ok=True)
             
             # 生成音频
             audio_result, saved_files = dialogue_synthesis_function(
