@@ -566,48 +566,61 @@ def dialogue_synthesis_function(
     random.seed(seed)
 
     # Check prompt info
+    # 首先按行分割文本，记录每个片段属于哪一行
+    lines = target_text.split('\n')
+    
     # 匹配 [S1]... 到下一个 [Sx] 或文本结尾
     # 使用非贪婪匹配，允许中间包含其他方括号标签（如 [laughter], [breath] 等）
     pattern = r'\[S([1-9]|[1-9][0-9]+)\](.*?)(?=\[S([1-9]|[1-9][0-9]+)\]|$)'
-    matches = list(re.finditer(pattern, target_text, re.DOTALL))
+    
     # 重新组合完整匹配：说话人标签 + 内容
     # 支持内联停顿标记：<|pause:MS|>，用于同一说话人内部停顿
     target_text_list: List[str] = []
     spk_seq: List[int] = []
     pause_after_ms_list: List[int] = []  # 与target_text_list对齐，表示该片段结束后需要插入的停顿（毫秒）
+    line_indices: List[int] = []  # 记录每个片段属于哪一行（从0开始）
     pause_token_pattern = re.compile(r'<\|pause:(\d+)\|>')
-    for match in matches:
-        spk_num_str = match.group(1)  # 说话人编号
-        content = match.group(2)  # 内容部分
-        try:
-            spk_num_int = int(spk_num_str)
-        except Exception:
-            spk_num_int = -1
-        # 按停顿标记拆分内容，保留分隔符（不单独捕获数字，避免被当作文本）
-        parts = re.split(r'(<\|pause:\d+\|>)', content)
-        last_idx_with_text = None
-        for p in parts:
-            if p is None or p == '':
-                continue
-            pause_m = pause_token_pattern.fullmatch(p.strip())
-            if pause_m is not None:
-                # 设置上一个文本片段的停顿时间
-                if last_idx_with_text is not None:
-                    try:
-                        pause_ms = int(pause_m.group(1))
-                    except Exception:
-                        pause_ms = 0
-                    pause_after_ms_list[last_idx_with_text] = max(0, pause_ms)
-                continue
-            # 正常文本片段
-            text_part = p.strip()
-            if len(text_part) == 0:
-                continue
-            full_text = f"[S{spk_num_str}]{text_part}"
-            target_text_list.append(full_text)
-            spk_seq.append(spk_num_int)
-            pause_after_ms_list.append(0)  # 默认无停顿，可能被后续<|pause:...|>覆盖
-            last_idx_with_text = len(target_text_list) - 1
+    
+    # 按行处理文本，记录每个片段属于哪一行
+    for line_idx, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        
+        matches = list(re.finditer(pattern, line, re.DOTALL))
+        for match in matches:
+            spk_num_str = match.group(1)  # 说话人编号
+            content = match.group(2)  # 内容部分
+            try:
+                spk_num_int = int(spk_num_str)
+            except Exception:
+                spk_num_int = -1
+            # 按停顿标记拆分内容，保留分隔符（不单独捕获数字，避免被当作文本）
+            parts = re.split(r'(<\|pause:\d+\|>)', content)
+            last_idx_with_text = None
+            for p in parts:
+                if p is None or p == '':
+                    continue
+                pause_m = pause_token_pattern.fullmatch(p.strip())
+                if pause_m is not None:
+                    # 设置上一个文本片段的停顿时间
+                    if last_idx_with_text is not None:
+                        try:
+                            pause_ms = int(pause_m.group(1))
+                        except Exception:
+                            pause_ms = 0
+                        pause_after_ms_list[last_idx_with_text] = max(0, pause_ms)
+                    continue
+                # 正常文本片段
+                text_part = p.strip()
+                if len(text_part) == 0:
+                    continue
+                full_text = f"[S{spk_num_str}]{text_part}"
+                target_text_list.append(full_text)
+                spk_seq.append(spk_num_int)
+                pause_after_ms_list.append(0)  # 默认无停顿，可能被后续<|pause:...|>覆盖
+                line_indices.append(line_idx)  # 记录该片段属于哪一行
+                last_idx_with_text = len(target_text_list) - 1
     
     # 找出对话中使用的最大说话人编号
     max_spk_used = 0
@@ -681,11 +694,14 @@ def dialogue_synthesis_function(
                 part_idx = speaker_part_counter[current_speaker]
                 # 保存音频片段（深拷贝以避免设备问题）
                 seg_copy = seg.clone().detach()
+                # 获取该片段所属的行号
+                current_line_idx = line_indices[i] if i < len(line_indices) else -1
                 ordered_segment_infos.append({
                     "turn_index": i,
                     "speaker": current_speaker,
                     "part_idx": part_idx,
                     "audio": seg_copy,
+                    "line_idx": current_line_idx,  # 添加行号信息
                 })
         
         # 合并到整体音频
@@ -722,6 +738,10 @@ def dialogue_synthesis_function(
             separated_dir = os.path.join(output_dir, "separated")
             os.makedirs(separated_dir, exist_ok=True)
             
+            # 创建sentences子文件夹用于保存按行合并的语音
+            sentences_dir = os.path.join(output_dir, "sentences")
+            os.makedirs(sentences_dir, exist_ok=True)
+            
             # 文件序号计数器（从1开始）
             file_counter = 1
             
@@ -744,6 +764,59 @@ def dialogue_synthesis_function(
                     saved_files.append(part_filename)
                     print(f"[INFO] {i18n('log_saved_speaker_part').format(num=seg_info['speaker'], part=seg_info['part_idx'])}: {part_filename}")
                     file_counter += 1
+            
+            # 按行合并音频片段并保存到sentences子文件夹
+            if ordered_segment_infos:
+                # 按行号分组音频片段
+                line_to_segments: dict[int, List[dict]] = defaultdict(list)
+                for idx, seg_info in enumerate(ordered_segment_infos):
+                    line_idx = seg_info.get("line_idx", -1)
+                    if line_idx >= 0:
+                        seg_info_with_pause = seg_info.copy()
+                        # 添加片段后的停顿信息
+                        turn_index = seg_info.get("turn_index", idx)
+                        if turn_index < len(pause_after_ms_list):
+                            seg_info_with_pause["pause_after_ms"] = pause_after_ms_list[turn_index]
+                        else:
+                            seg_info_with_pause["pause_after_ms"] = 0
+                        line_to_segments[line_idx].append(seg_info_with_pause)
+                
+                # 获取所有有内容的行号并排序
+                valid_line_indices = sorted(line_to_segments.keys())
+                
+                # 按行合并并保存
+                sentence_counter = 1
+                for line_idx in valid_line_indices:
+                    segments = line_to_segments[line_idx]
+                    if not segments:
+                        continue
+                    
+                    # 合并该行的所有音频片段
+                    line_audio = None
+                    for seg_idx, seg_info in enumerate(segments):
+                        seg_audio = seg_info["audio"]
+                        
+                        if line_audio is None:
+                            line_audio = seg_audio
+                        else:
+                            # 在片段之间添加停顿（如果有的话）
+                            if seg_idx > 0:
+                                # 使用前一个片段的 pause_after_ms
+                                prev_pause_ms = segments[seg_idx - 1].get("pause_after_ms", 0)
+                                if prev_pause_ms > 0:
+                                    silence_len = int((prev_pause_ms / 1000.0) * sample_rate)
+                                    if silence_len > 0:
+                                        silence = torch.zeros((1, silence_len), dtype=seg_audio.dtype, device=seg_audio.device)
+                                        line_audio = torch.concat([line_audio, silence], dim=1)
+                            line_audio = torch.concat([line_audio, seg_audio], dim=1)
+                    
+                    # 保存按行合并的音频
+                    if line_audio is not None:
+                        sentence_filename = os.path.join(sentences_dir, f"sentence{sentence_counter}.wav")
+                        sf.write(sentence_filename, line_audio.cpu().squeeze(0).numpy(), sample_rate)
+                        saved_files.append(sentence_filename)
+                        print(f"[INFO] 已保存按行合并音频 sentence{sentence_counter}: {sentence_filename}")
+                        sentence_counter += 1
             
             if saved_files:
                 print(f"[INFO] {i18n('log_all_files_saved').format(dir=output_dir)}")

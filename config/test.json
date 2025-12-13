@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "export_time": "2025-12-13 10:14:34",
+  "export_time": "2025-12-13 12:02:48",
   "language": "zh",
   "num_speakers": 2,
   "num_text_inputs": 2,
@@ -19,7 +19,7 @@
     }
   ],
   "text_inputs": [
-    "[S1] 一 <|pause:600|> 听力测试（共四节，满分60分）<|pause:2000|>\n[S2] 第一节：<|pause:600|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:2000|>\n\n[S1] one, <|pause:1200|> N <|pause:1800|> N  <|pause:2000|>\n[S1] two, <|pause:1200|> Let's see. <|pause:1800|> Let's see. <|pause:2000|>\n[S1] three, <|pause:1200|> Look at my umbrella.",
-    "[S2] 一 <|pause:600|> 听力测试（共四节，满分60分）<|pause:2000|>\n[S1] 第一节：<|pause:600|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:2000|>\n\n[S2] one, <|pause:1200|> N <|pause:1800|> N  <|pause:2000|>\n[S2] two, <|pause:1200|> Let's see. <|pause:1800|> Let's see. <|pause:2000|>\n[S2] three, <|pause:1200|> Look at my umbrella. "
+    "[S1] 一 <|pause:200|> 听力测试<|pause:200|>\n[S2] 第一节：<|pause:200|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:300|>\n[S1] eleven, <|pause:100|> K <|pause:200|> K <|pause:300|>\n[S2] twelve, <|pause:100|> What colour is it? <|pause:200|> [S1] It's purple. <|pause:300|>[S2]  What colour is it? <|pause:200|> [S1] It's purple. ",
+    "[S2] 一 <|pause:200|> 听力测试<|pause:200|>\n[S1] 第一节：<|pause:200|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:300|>\n[S2] eleven, <|pause:100|> K <|pause:200|> K <|pause:300|>\n[S1] twelve, <|pause:100|> What colour is it? <|pause:200|> [S2] It's purple. <|pause:300|>[S1]  What colour is it? <|pause:200|> [S2] It's purple. "
   ]
 }
