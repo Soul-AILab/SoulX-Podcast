@@ -1034,8 +1034,10 @@ def render_interface() -> gr.Blocks:
                 scale=1,
             )
         
-        # 创建多个文本输入框
+        # 创建多个文本输入框及其对应的预览和下载组件
         dialogue_text_inputs_list = []
+        dialogue_audio_preview_list = []  # 每个任务的音频预览
+        dialogue_download_list = []  # 每个任务的下载链接
         dialogue_text_inputs_container = gr.Column()
         with dialogue_text_inputs_container:
             for i in range(MAX_TEXT_INPUTS):
@@ -1046,6 +1048,20 @@ def render_interface() -> gr.Blocks:
                     visible=(i < 1),
                 )
                 dialogue_text_inputs_list.append(dialogue_text_input)
+                
+                # 为每个任务添加音频预览和下载
+                with gr.Row():
+                    task_audio_preview = gr.Audio(
+                        label=f"任务 {i+1} 音频预览 / Task {i+1} Audio Preview",
+                        interactive=False,
+                        visible=False,  # 初始隐藏，只有在有结果时才显示
+                    )
+                    task_download = gr.File(
+                        label=f"任务 {i+1} 下载 / Task {i+1} Download",
+                        visible=False,  # 初始隐藏，只有在有结果时才显示
+                    )
+                dialogue_audio_preview_list.append(task_audio_preview)
+                dialogue_download_list.append(task_download)
         
         # Generate button
         with gr.Row():
@@ -1091,17 +1107,23 @@ def render_interface() -> gr.Blocks:
             num = int(num_inputs) if num_inputs else 1
             num = max(1, min(num, MAX_TEXT_INPUTS))
             updates = []
+            audio_updates = []
+            download_updates = []
             for i in range(MAX_TEXT_INPUTS):
+                is_visible = (i < num)
                 updates.append(gr.update(
-                    visible=(i < num),
+                    visible=is_visible,
                     label=f"{i18n('dialogue_text_input_label')} {i+1}"
                 ))
-            return num, *updates
+                # 同时更新音频预览和下载组件的可见性（初始状态为隐藏，只有在有结果时才显示）
+                audio_updates.append(gr.update(visible=False))
+                download_updates.append(gr.update(visible=False))
+            return num, *updates, *audio_updates, *download_updates
         
         num_text_inputs_selector.change(
             fn=update_text_inputs_visibility,
             inputs=[num_text_inputs_selector],
-            outputs=[num_text_inputs_state] + dialogue_text_inputs_list
+            outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
         )
 
 
@@ -1155,6 +1177,7 @@ def render_interface() -> gr.Blocks:
             处理队列中的所有任务
             all_text_and_speaker_args格式: (text1, text2, ..., textN, audio1, text1, dialect1, audio2, text2, dialect2, ...)
             """
+            global global_lang
             num_text = int(num_text_inputs) if num_text_inputs else 1
             num_speaker = int(num_speakers)
             
@@ -1172,11 +1195,16 @@ def render_interface() -> gr.Blocks:
                     valid_indices.append(i)
             
             if not valid_texts:
+                # 返回空结果，包括所有任务的音频预览和下载组件
+                empty_audio_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
+                empty_download_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
                 return (
                     None,
                     "所有输入框均为空，请至少填写一个文本输入",
                     gr.update(visible=False),
-                    gr.update(interactive=True)
+                    gr.update(interactive=True),
+                    *empty_audio_updates,
+                    *empty_download_updates,
                 )
             
             # 生成统一的时间戳（所有任务共享同一个时间戳文件夹）
@@ -1192,6 +1220,9 @@ def render_interface() -> gr.Blocks:
             all_info_messages = []
             last_audio_result = None
             last_zip_file_path = None
+            task_audio_results = {}  # 存储每个任务的音频结果 {text_idx: audio_result}
+            task_zip_files = {}  # 存储每个任务的zip文件 {text_idx: zip_file_path}
+            all_complete_audio_files = []  # 存储所有任务的完整音频文件路径，用于合并
             
             # 循环处理所有任务
             for task_idx, (text_idx, target_text) in enumerate(zip(valid_indices, valid_texts)):
@@ -1207,6 +1238,15 @@ def render_interface() -> gr.Blocks:
                     
                     last_audio_result = audio_result
                     last_zip_file_path = zip_file_path
+                    
+                    # 保存每个任务的音频结果和zip文件
+                    task_audio_results[text_idx] = audio_result
+                    task_zip_files[text_idx] = zip_file_path
+                    
+                    # 收集完整对话音频文件路径，用于后续合并
+                    complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
+                    if complete_files:
+                        all_complete_audio_files.extend(complete_files)
                     
                     # 构建任务信息
                     task_subdir_name = f"{task_number:03d}"
@@ -1270,15 +1310,90 @@ def render_interface() -> gr.Blocks:
                     import traceback
                     traceback.print_exc()
             
+            # 合并所有任务的完整对话音频到一个总文件
+            merged_audio_path = None
+            if all_complete_audio_files and len(all_complete_audio_files) > 0:
+                try:
+                    merged_audio_path = os.path.join(base_output_dir, "all.wav")
+                    merged_audio_data = None
+                    sample_rate = 24000
+                    
+                    for audio_file in all_complete_audio_files:
+                        if os.path.exists(audio_file):
+                            audio_data, sr = sf.read(audio_file)
+                            if sample_rate != sr:
+                                # 如果采样率不一致，需要重采样（这里简化处理，假设都是24000）
+                                print(f"[WARNING] 采样率不一致: {audio_file} 为 {sr}Hz，期望 {sample_rate}Hz")
+                            
+                            # 确保音频数据是1D数组（单声道）
+                            if len(audio_data.shape) > 1:
+                                # 如果是立体声，转换为单声道（取平均值）
+                                audio_data = np.mean(audio_data, axis=1)
+                            
+                            if merged_audio_data is None:
+                                merged_audio_data = audio_data
+                            else:
+                                # 在不同任务之间添加短暂停顿（500ms）
+                                pause_samples = int(0.5 * sample_rate)  # 500ms停顿
+                                silence = np.zeros(pause_samples)
+                                merged_audio_data = np.concatenate([merged_audio_data, silence, audio_data])
+                    
+                    if merged_audio_data is not None:
+                        sf.write(merged_audio_path, merged_audio_data, sample_rate)
+                        print(f"[INFO] 已合并所有任务音频到: {merged_audio_path}")
+                except Exception as e:
+                    print(f"[ERROR] 合并音频文件时出错: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+            
             # 合并所有任务的信息
             final_info_message = f"📂 所有任务文件保存在统一的时间戳文件夹中:\n"
             final_info_message += f"   {os.path.abspath(base_output_dir)}\n"
-            final_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n\n"
+            final_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n"
+            if merged_audio_path and os.path.exists(merged_audio_path):
+                final_info_message += f"   📁 合并音频文件: {os.path.basename(merged_audio_path)}\n"
+            final_info_message += "\n"
             final_info_message += "═══════════════════════════════════\n\n"
             final_info_message += "\n\n".join(all_info_messages)
             final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
             
-            # 返回最后一个任务的音频和zip文件
+            # 为每个任务生成音频预览和下载更新
+            audio_preview_updates = []
+            download_updates = []
+            for i in range(MAX_TEXT_INPUTS):
+                if i in task_audio_results:
+                    # 该任务有结果，显示音频预览和下载
+                    audio_result = task_audio_results[i]
+                    zip_file_path = task_zip_files.get(i)
+                    
+                    # 根据当前语言设置标签
+                    if global_lang == "zh":
+                        audio_label = f"任务 {i+1} 音频预览"
+                        download_label = f"任务 {i+1} 下载"
+                    else:
+                        audio_label = f"Task {i+1} Audio Preview"
+                        download_label = f"Task {i+1} Download"
+                    
+                    audio_preview_updates.append(gr.update(
+                        visible=True,
+                        value=audio_result,
+                        label=audio_label
+                    ))
+                    
+                    if zip_file_path and os.path.exists(zip_file_path):
+                        download_updates.append(gr.update(
+                            visible=True,
+                            value=zip_file_path,
+                            label=download_label
+                        ))
+                    else:
+                        download_updates.append(gr.update(visible=False))
+                else:
+                    # 该任务没有结果，隐藏组件
+                    audio_preview_updates.append(gr.update(visible=False))
+                    download_updates.append(gr.update(visible=False))
+            
+            # 返回最后一个任务的音频和zip文件（保持向后兼容）
             download_file_update = None
             if last_zip_file_path and os.path.exists(last_zip_file_path):
                 download_label = f"{i18n('download_all_files_label')} - {os.path.basename(last_zip_file_path)}"
@@ -1290,7 +1405,9 @@ def render_interface() -> gr.Blocks:
                 last_audio_result,
                 final_info_message,
                 download_file_update,
-                gr.update(interactive=True)  # 重新启用按钮
+                gr.update(interactive=True),  # 重新启用按钮
+                *audio_preview_updates,  # 每个任务的音频预览
+                *download_updates,  # 每个任务的下载链接
             )
         
         # 生成按钮点击事件（支持队列）
@@ -1314,7 +1431,9 @@ def render_interface() -> gr.Blocks:
                 generate_audio, 
                 separated_files_info, 
                 download_file,
-                generate_btn
+                generate_btn,
+                *dialogue_audio_preview_list,  # 每个任务的音频预览
+                *dialogue_download_list,  # 每个任务的下载链接
             ],
         )
         
@@ -1347,6 +1466,14 @@ def render_interface() -> gr.Blocks:
                     label=f"{i18n('dialogue_text_input_label')} {i+1}",
                     placeholder=i18n("dialogue_text_input_placeholder"),
                 ))
+            # 添加每个任务的音频预览和下载组件标签更新
+            for i in range(MAX_TEXT_INPUTS):
+                if global_lang == "zh":
+                    updates.append(gr.update(label=f"任务 {i+1} 音频预览"))
+                    updates.append(gr.update(label=f"任务 {i+1} 下载"))
+                else:
+                    updates.append(gr.update(label=f"Task {i+1} Audio Preview"))
+                    updates.append(gr.update(label=f"Task {i+1} Download"))
             # 添加对话文本、生成按钮和音频输出
             updates.extend([
                 gr.update(value=i18n("generate_btn_label")),
@@ -1372,7 +1499,7 @@ def render_interface() -> gr.Blocks:
         lang_choice.change(
             fn=_change_component_language,
             inputs=[lang_choice],
-            outputs=speaker_checkbox_list + all_speaker_inputs + dialogue_text_inputs_list + [generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
+            outputs=speaker_checkbox_list + all_speaker_inputs + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list + [generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
         )
     return page
 
