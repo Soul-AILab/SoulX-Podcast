@@ -1,6 +1,8 @@
 import re
 import os
 import zipfile
+import json
+import uuid
 from collections import defaultdict
 import gradio as gr
 from tqdm import tqdm
@@ -28,6 +30,67 @@ from soulxpodcast.utils.dataloader import (
 
 S1_PROMPT_WAV = "example/audios/female_mandarin.wav"  
 S2_PROMPT_WAV = "example/audios/male_mandarin.wav"  
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_DIR = os.path.join(BASE_DIR, "config")
+
+
+def _ensure_config_dir():
+    os.makedirs(CONFIG_DIR, exist_ok=True)
+
+
+def _list_config_files() -> List[str]:
+    """返回 config/ 下的 JSON 文件名列表（仅文件名，不含路径）。"""
+    _ensure_config_dir()
+    try:
+        files = [f for f in os.listdir(CONFIG_DIR) if f.lower().endswith(".json")]
+    except Exception:
+        files = []
+    # 按文件名倒序（通常包含时间戳）
+    return sorted(files, reverse=True)
+
+
+def _read_json_file(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _write_json_file(path: str, data: dict):
+    tmp_path = f"{path}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_path, path)
+
+
+def _coerce_gradio_file_to_path(file_obj) -> Optional[str]:
+    """
+    兼容 gr.File 的不同返回形态：
+    - str 路径
+    - dict（含 name/path）
+    - 对象（含 name 属性）
+    """
+    if file_obj is None:
+        return None
+    if isinstance(file_obj, str):
+        return file_obj
+    if isinstance(file_obj, dict):
+        return file_obj.get("name") or file_obj.get("path")
+    return getattr(file_obj, "name", None)
+
+
+def _coerce_audio_value_to_path(audio_val) -> Optional[str]:
+    """
+    gr.Audio(type="filepath") 通常返回 str 路径；这里做额外兼容。
+    """
+    if audio_val is None:
+        return None
+    if isinstance(audio_val, str):
+        return audio_val
+    if isinstance(audio_val, dict):
+        return audio_val.get("name") or audio_val.get("path")
+    return getattr(audio_val, "name", None)
+
 
 def load_dialect_prompt_data():
     """
@@ -846,6 +909,32 @@ def render_interface() -> gr.Blocks:
                 scale=1,
             )
 
+        # 配置管理（导出/导入）
+        with gr.Accordion("配置管理 / Config", open=False):
+            with gr.Row():
+                export_config_btn = gr.Button("导出当前配置", variant="secondary")
+                export_config_file = gr.File(label="导出的配置文件", interactive=False)
+            export_config_status = gr.Textbox(label="导出提示", interactive=False, lines=2)
+
+            gr.Markdown("**方式 1：上传 JSON 文件导入**")
+            with gr.Row():
+                import_config_uploader = gr.File(label="导入配置", file_types=[".json"])
+                load_uploaded_config_btn = gr.Button("加载配置", variant="primary")
+            load_uploaded_status = gr.Textbox(label="导入/加载提示", interactive=False, lines=3)
+
+            gr.Markdown("**方式 2：从 `config/` 目录选择导入（新增）**")
+            with gr.Row():
+                config_dropdown = gr.Dropdown(
+                    label="config 目录中的配置文件",
+                    choices=_list_config_files(),
+                    value=None,
+                    interactive=True,
+                    allow_custom_value=False,
+                )
+                refresh_config_list_btn = gr.Button("刷新列表", variant="secondary")
+                load_selected_config_btn = gr.Button("加载选中配置", variant="primary")
+            load_selected_status = gr.Textbox(label="加载提示", interactive=False, lines=3)
+
         # 说话人状态管理（最多支持10个说话人）
         MAX_SPEAKERS = 10
         speakers_state = gr.State(value=1)  # 当前说话人数量
@@ -1169,6 +1258,369 @@ def render_interface() -> gr.Blocks:
             fn=update_text_inputs_visibility,
             inputs=[num_text_inputs_selector],
             outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
+        )
+
+        # ========== 配置导出 / 导入实现 ==========
+        # 用于配置导出/导入的说话人输入列表（audio/text/dialect），避免依赖后面才定义的 all_speaker_inputs
+        all_speaker_inputs_for_config = []
+        for i in range(MAX_SPEAKERS):
+            all_speaker_inputs_for_config.extend([
+                speaker_audio_list[i],
+                speaker_text_list[i],
+                speaker_dialect_list[i],
+            ])
+
+        def _build_current_config_dict(
+            language_idx,
+            seed,
+            diff_spk_pause_ms,
+            num_speakers,
+            num_text_inputs,
+            text_inputs: List[str],
+            speaker_values: List,
+        ) -> dict:
+            # language_idx: 0=中文, 1=English
+            language = "zh" if int(language_idx) == 0 else "en"
+            num_speakers = int(num_speakers) if num_speakers else 1
+            num_text_inputs = int(num_text_inputs) if num_text_inputs else 1
+
+            # speaker_values 格式: [audio1, text1, dialect1, audio2, text2, dialect2, ...]
+            speakers = []
+            for i in range(MAX_SPEAKERS):
+                base = i * 3
+                audio_val = speaker_values[base] if base < len(speaker_values) else None
+                text_val = speaker_values[base + 1] if base + 1 < len(speaker_values) else ""
+                dialect_val = speaker_values[base + 2] if base + 2 < len(speaker_values) else ""
+                speakers.append(
+                    {
+                        "prompt_audio": _coerce_audio_value_to_path(audio_val),
+                        "prompt_text": text_val if text_val is not None else "",
+                        "dialect_prompt_text": dialect_val if dialect_val is not None else "",
+                    }
+                )
+
+            cfg = {
+                "version": "1.0",
+                "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "language": language,
+                "num_speakers": num_speakers,
+                "num_text_inputs": num_text_inputs,
+                "seed": int(seed) if seed is not None else 1988,
+                "diff_spk_pause_ms": int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
+                "speakers": speakers[:num_speakers],
+                "text_inputs": [t if t is not None else "" for t in text_inputs[:num_text_inputs]],
+            }
+            return cfg
+
+        def _export_current_config(
+            language_idx,
+            seed,
+            diff_spk_pause_ms,
+            num_speakers,
+            num_text_inputs,
+            *values,
+        ):
+            """
+            values: text_inputs(10) + speaker_inputs(10*3)
+            """
+            _ensure_config_dir()
+            text_inputs = list(values[:MAX_TEXT_INPUTS])
+            speaker_values = list(values[MAX_TEXT_INPUTS:])
+
+            cfg = _build_current_config_dict(
+                language_idx=language_idx,
+                seed=seed,
+                diff_spk_pause_ms=diff_spk_pause_ms,
+                num_speakers=num_speakers,
+                num_text_inputs=num_text_inputs,
+                text_inputs=text_inputs,
+                speaker_values=speaker_values,
+            )
+
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fname = f"soulx_podcast_config_{ts}.json"
+            out_path = os.path.join(CONFIG_DIR, fname)
+            # 极小概率同秒冲突，追加随机后缀
+            if os.path.exists(out_path):
+                out_path = os.path.join(CONFIG_DIR, f"soulx_podcast_config_{ts}_{uuid.uuid4().hex[:8]}.json")
+            _write_json_file(out_path, cfg)
+            return out_path, f"✅ 已导出配置到: {out_path}\n（如果要在下拉菜单里看到新文件，请点击“刷新列表”）"
+
+        def _refresh_config_dropdown(current_value):
+            files = _list_config_files()
+            # 尽量保留当前选择
+            new_value = current_value if current_value in files else (files[0] if files else None)
+            return gr.update(choices=files, value=new_value)
+
+        def _apply_loaded_config(cfg: dict):
+            """
+            将 cfg 应用到界面，返回一组 updates，顺序与 outputs 对齐。
+            """
+            # 兼容旧字段/缺失字段
+            num_speakers = int(cfg.get("num_speakers") or 1)
+            num_speakers = max(1, min(num_speakers, MAX_SPEAKERS))
+
+            num_text_inputs = int(cfg.get("num_text_inputs") or 1)
+            num_text_inputs = max(1, min(num_text_inputs, MAX_TEXT_INPUTS))
+
+            seed_val = int(cfg.get("seed") or 1988)
+            diff_pause_val = int(cfg.get("diff_spk_pause_ms") or 0)
+
+            speakers = cfg.get("speakers") or []
+            text_inputs = cfg.get("text_inputs") or []
+
+            # speakers_state, num_text_inputs_state, num_text_inputs_selector, seed_input, diff_spk_pause_input
+            result = [
+                num_speakers,
+                num_text_inputs,
+                gr.update(value=num_text_inputs),
+                gr.update(value=seed_val),
+                gr.update(value=diff_pause_val),
+            ]
+
+            # speaker checkboxes
+            for i in range(MAX_SPEAKERS):
+                if i < num_speakers:
+                    result.append(gr.update(visible=True, value=False, label=get_select_speaker_label(i + 1)))
+                else:
+                    result.append(gr.update(visible=False, value=False))
+
+            # speaker audio (all), then text (all), then dialect (all)
+            # 顺序必须与 outputs 对齐: *speaker_audio_list, *speaker_text_list, *speaker_dialect_list
+            warnings = []
+            audio_updates = []
+            text_updates = []
+            dialect_updates = []
+            for i in range(MAX_SPEAKERS):
+                if i < num_speakers:
+                    spk = speakers[i] if i < len(speakers) else {}
+                    audio_path = spk.get("prompt_audio")
+                    if isinstance(audio_path, str) and audio_path.strip():
+                        if not os.path.isabs(audio_path):
+                            audio_path = os.path.join(CONFIG_DIR, audio_path)
+                        if not os.path.exists(audio_path):
+                            warnings.append(f"说话人{i+1}参考语音不存在: {audio_path}")
+                            audio_path = None
+                    else:
+                        audio_path = None
+                    audio_updates.append(gr.update(value=audio_path))
+                    text_updates.append(gr.update(value=spk.get("prompt_text", "") or ""))
+                    dialect_updates.append(gr.update(value=spk.get("dialect_prompt_text", "") or ""))
+                else:
+                    audio_updates.append(gr.update(value=None))
+                    text_updates.append(gr.update(value=""))
+                    dialect_updates.append(gr.update(value=""))
+            result.extend(audio_updates)
+            result.extend(text_updates)
+            result.extend(dialect_updates)
+
+            # speaker columns
+            for i in range(MAX_SPEAKERS):
+                result.append(gr.update(visible=(i < num_speakers)))
+
+            # dialogue text inputs (仅前 num_text_inputs 可见)
+            for i in range(MAX_TEXT_INPUTS):
+                if i < num_text_inputs:
+                    t = text_inputs[i] if i < len(text_inputs) else ""
+                    result.append(gr.update(visible=True, value=t))
+                else:
+                    result.append(gr.update(visible=False, value=""))
+
+            warn_text = ""
+            if warnings:
+                warn_text = "⚠️ 加载完成，但有部分资源缺失：\n- " + "\n- ".join(warnings)
+            return result, warn_text
+
+        # 导入：上传 JSON -> 读取 -> 保存到 config/ -> 应用到界面
+        def _load_uploaded_and_apply(file_obj):
+            path = _coerce_gradio_file_to_path(file_obj)
+            if not path or not os.path.exists(path):
+                gr.Warning("请先选择一个 JSON 配置文件")
+                # 返回一组安全默认值（避免对 gr.State 输出 gr.update()）
+                empty_updates = []
+                empty_updates.extend([
+                    1,  # speakers_state
+                    1,  # num_text_inputs_state
+                    gr.update(value=1),  # num_text_inputs_selector
+                    gr.update(value=1988),  # seed_input
+                    gr.update(value=0),  # diff_spk_pause_input
+                ])
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False, value=False))  # checkboxes
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=None))  # audio
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # text
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # dialect
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False))  # columns
+                for _ in range(MAX_TEXT_INPUTS):
+                    empty_updates.append(gr.update(visible=False, value=""))
+                return (*empty_updates, "未选择文件，无法加载。")
+
+            try:
+                cfg = _read_json_file(path)
+            except Exception as e:
+                gr.Warning(f"读取配置失败: {e}")
+                empty_updates = []
+                empty_updates.extend([1, 1, gr.update(value=1), gr.update(value=1988), gr.update(value=0)])
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False, value=False))  # checkboxes
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=None))  # audio
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # text
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # dialect
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False))  # columns
+                for _ in range(MAX_TEXT_INPUTS):
+                    empty_updates.append(gr.update(visible=False, value=""))
+                return (*empty_updates, f"读取配置失败: {e}")
+
+            # 自动保存到 config/ 目录，便于下拉选择
+            _ensure_config_dir()
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = os.path.basename(path)
+            # 尽量沿用原文件名，避免覆盖
+            safe_name = base_name if base_name.lower().endswith(".json") else f"{base_name}.json"
+            save_name = f"uploaded_{ts}_{safe_name}"
+            save_path = os.path.join(CONFIG_DIR, save_name)
+            if os.path.exists(save_path):
+                save_path = os.path.join(CONFIG_DIR, f"uploaded_{ts}_{uuid.uuid4().hex[:8]}_{safe_name}")
+            try:
+                _write_json_file(save_path, cfg)
+            except Exception as e:
+                gr.Warning(f"保存配置到 config/ 失败: {e}")
+
+            updates, warn_text = _apply_loaded_config(cfg)
+            status = f"✅ 已加载配置: {os.path.abspath(save_path)}"
+            if warn_text:
+                status += f"\n\n{warn_text}"
+            status += "\n（若要在下拉菜单中看到新文件，请点击“刷新列表”）"
+            return (*updates, status)
+
+        # 导入：从 config/ 下拉选择 -> 读取 -> 应用到界面
+        def _load_selected_and_apply(selected_filename: str):
+            if not selected_filename:
+                gr.Warning("请先在下拉菜单选择一个配置文件")
+                empty_updates = []
+                empty_updates.extend([1, 1, gr.update(value=1), gr.update(value=1988), gr.update(value=0)])
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False, value=False))  # checkboxes
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=None))  # audio
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # text
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # dialect
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False))  # columns
+                for _ in range(MAX_TEXT_INPUTS):
+                    empty_updates.append(gr.update(visible=False, value=""))
+                return (*empty_updates, "未选择配置文件，无法加载。")
+            path = os.path.join(CONFIG_DIR, selected_filename)
+            if not os.path.exists(path):
+                gr.Warning(f"配置文件不存在: {path}")
+                empty_updates = []
+                empty_updates.extend([1, 1, gr.update(value=1), gr.update(value=1988), gr.update(value=0)])
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False, value=False))  # checkboxes
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=None))  # audio
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # text
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # dialect
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False))  # columns
+                for _ in range(MAX_TEXT_INPUTS):
+                    empty_updates.append(gr.update(visible=False, value=""))
+                return (*empty_updates, f"配置文件不存在: {path}")
+            try:
+                cfg = _read_json_file(path)
+            except Exception as e:
+                gr.Warning(f"读取配置失败: {e}")
+                empty_updates = []
+                empty_updates.extend([1, 1, gr.update(value=1), gr.update(value=1988), gr.update(value=0)])
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False, value=False))  # checkboxes
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=None))  # audio
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # text
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(value=""))  # dialect
+                for _ in range(MAX_SPEAKERS):
+                    empty_updates.append(gr.update(visible=False))  # columns
+                for _ in range(MAX_TEXT_INPUTS):
+                    empty_updates.append(gr.update(visible=False, value=""))
+                return (*empty_updates, f"读取配置失败: {e}")
+
+            updates, warn_text = _apply_loaded_config(cfg)
+            status = f"✅ 已加载配置: {os.path.abspath(path)}"
+            if warn_text:
+                status += f"\n\n{warn_text}"
+            return (*updates, status)
+
+        # 导出：导出当前配置到 config/，并提供下载
+        export_config_btn.click(
+            fn=_export_current_config,
+            inputs=[
+                lang_choice,
+                seed_input,
+                diff_spk_pause_input,
+                speakers_state,
+                num_text_inputs_state,
+                *dialogue_text_inputs_list,
+                *all_speaker_inputs_for_config,
+            ],
+            outputs=[export_config_file, export_config_status],
+        )
+
+        refresh_config_list_btn.click(
+            fn=_refresh_config_dropdown,
+            inputs=[config_dropdown],
+            outputs=[config_dropdown],
+        )
+
+        load_uploaded_config_btn.click(
+            fn=_load_uploaded_and_apply,
+            inputs=[import_config_uploader],
+            outputs=[
+                speakers_state,
+                num_text_inputs_state,
+                num_text_inputs_selector,
+                seed_input,
+                diff_spk_pause_input,
+                *speaker_checkbox_list,
+                *speaker_audio_list,
+                *speaker_text_list,
+                *speaker_dialect_list,
+                *speaker_columns,
+                *dialogue_text_inputs_list,
+                load_uploaded_status,
+            ],
+        )
+
+        load_selected_config_btn.click(
+            fn=_load_selected_and_apply,
+            inputs=[config_dropdown],
+            outputs=[
+                speakers_state,
+                num_text_inputs_state,
+                num_text_inputs_selector,
+                seed_input,
+                diff_spk_pause_input,
+                *speaker_checkbox_list,
+                *speaker_audio_list,
+                *speaker_text_list,
+                *speaker_dialect_list,
+                *speaker_columns,
+                *dialogue_text_inputs_list,
+                load_selected_status,
+            ],
         )
 
 
