@@ -1730,13 +1730,8 @@ def render_interface() -> gr.Blocks:
                 timestamp=timestamp
             )
             
-            # 创建压缩包
-            zip_file_path = None
-            if saved_files:
-                zip_file_number = len(saved_files)
-                zip_file_path = create_zip_file(saved_files, output_dir, timestamp, zip_file_number)
-            
-            return audio_result, saved_files, zip_file_path, output_dir
+            # 不再为每个子任务创建压缩包，只返回结果
+            return audio_result, saved_files, None, output_dir
         
         # 收集说话人配置的包装函数（支持队列处理）
         def collect_and_synthesize_queue(
@@ -1789,9 +1784,7 @@ def render_interface() -> gr.Blocks:
             all_results = []
             all_info_messages = []
             last_audio_result = None
-            last_zip_file_path = None
             task_audio_results = {}  # 存储每个任务的音频结果 {text_idx: audio_result}
-            task_zip_files = {}  # 存储每个任务的zip文件 {text_idx: zip_file_path}
             all_complete_audio_files = []  # 存储所有任务的完整音频文件路径，用于合并
             all_generated_files = []  # 存储所有生成的文件路径，用于创建all.zip
             
@@ -1808,11 +1801,9 @@ def render_interface() -> gr.Blocks:
                     )
                     
                     last_audio_result = audio_result
-                    last_zip_file_path = zip_file_path
                     
-                    # 保存每个任务的音频结果和zip文件
+                    # 保存每个任务的音频结果
                     task_audio_results[text_idx] = audio_result
-                    task_zip_files[text_idx] = zip_file_path
                     
                     # 收集所有生成的文件，用于创建all.zip
                     all_generated_files.extend(saved_files)
@@ -1869,10 +1860,6 @@ def render_interface() -> gr.Blocks:
                                 for filename in sorted(parts):
                                     info_message += f"  • {filename}\n"
                             info_message += "\n"
-                        
-                        if zip_file_path:
-                            info_message += f"📦 {i18n('zip_file_created').format(filename=os.path.basename(zip_file_path))}\n"
-                            info_message += f"   {i18n('download_hint')}\n"
                     else:
                         info_message += f"{i18n('no_files_saved')}\n"
                     
@@ -1965,16 +1952,12 @@ def render_interface() -> gr.Blocks:
             
             for i in range(MAX_TEXT_INPUTS):
                 if i in task_audio_results:
-                    # 该任务有结果，显示音频预览和下载
-                    zip_file_path = task_zip_files.get(i)
-                    
+                    # 该任务有结果，显示音频预览
                     # 根据当前语言设置标签
                     if global_lang == "zh":
                         audio_label = f"任务 {i+1} 音频预览"
-                        download_label = f"任务 {i+1} 下载"
                     else:
                         audio_label = f"Task {i+1} Audio Preview"
-                        download_label = f"Task {i+1} Download"
                     
                     # 使用该任务自己的音频作为预览
                     audio_preview_updates.append(gr.update(
@@ -1983,14 +1966,8 @@ def render_interface() -> gr.Blocks:
                         label=audio_label
                     ))
                     
-                    if zip_file_path and os.path.exists(zip_file_path):
-                        download_updates.append(gr.update(
-                            visible=True,
-                            value=zip_file_path,
-                            label=download_label
-                        ))
-                    else:
-                        download_updates.append(gr.update(visible=False))
+                    # 不再为每个子任务提供下载链接
+                    download_updates.append(gr.update(visible=False))
                 else:
                     # 该任务没有结果，隐藏组件
                     audio_preview_updates.append(gr.update(visible=False))
@@ -2001,10 +1978,6 @@ def render_interface() -> gr.Blocks:
             if all_zip_path and os.path.exists(all_zip_path):
                 download_label = f"{i18n('download_all_files_label')} - all.zip"
                 download_file_update = gr.update(visible=True, value=all_zip_path, label=download_label)
-            elif last_zip_file_path and os.path.exists(last_zip_file_path):
-                # 如果没有 all.zip，则使用最后一个任务的zip（向后兼容）
-                download_label = f"{i18n('download_all_files_label')} - {os.path.basename(last_zip_file_path)}"
-                download_file_update = gr.update(visible=True, value=last_zip_file_path, label=download_label)
             else:
                 download_file_update = gr.update(visible=False, value=None)
             
