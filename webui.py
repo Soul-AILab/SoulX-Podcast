@@ -655,6 +655,10 @@ def dialogue_synthesis_function(
             if timestamp is None:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             
+            # 创建separated子文件夹用于保存分段语音
+            separated_dir = os.path.join(output_dir, "separated")
+            os.makedirs(separated_dir, exist_ok=True)
+            
             # 文件序号计数器（从1开始）
             file_counter = 1
             
@@ -665,12 +669,12 @@ def dialogue_synthesis_function(
                 saved_files.append(complete_audio_filename)
                 print(f"[INFO] {i18n('log_saved_complete_dialogue')}: {complete_audio_filename}")
             
-            # 按对话顺序保存分离的说话者音频片段
+            # 按对话顺序保存分离的说话者音频片段到separated子文件夹
             if ordered_segment_infos:
                 for seg_info in ordered_segment_infos:
                     seg_audio_np = seg_info["audio"].cpu().squeeze(0).numpy()
                     part_filename = os.path.join(
-                        output_dir,
+                        separated_dir,
                         f"{file_counter:03d}_speaker{seg_info['speaker']}_part{seg_info['part_idx']}.wav"
                     )
                     sf.write(part_filename, seg_audio_np, sample_rate)
@@ -727,6 +731,47 @@ def create_zip_file(file_list: List[str], output_dir: str, timestamp: str = None
         return zip_filename
     except Exception as e:
         print(f"[ERROR] {i18n('log_error_creating_zip').format(error=str(e))}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def create_all_zip(base_output_dir: str, all_files: List[str]) -> Optional[str]:
+    """
+    创建包含所有任务文件的 all.zip 压缩包，保持目录结构
+    
+    Args:
+        base_output_dir: 基础输出目录（时间戳文件夹）
+        all_files: 所有要打包的文件路径列表
+    
+    Returns:
+        all.zip 文件路径，如果失败则返回 None
+    """
+    if not all_files:
+        return None
+    
+    try:
+        zip_filename = os.path.join(base_output_dir, "all.zip")
+        
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in all_files:
+                if os.path.exists(file_path):
+                    # 保持相对路径结构，相对于base_output_dir
+                    # 使用 os.path.relpath 更安全，可以处理各种路径格式
+                    try:
+                        arcname = os.path.relpath(file_path, base_output_dir)
+                        # 确保路径使用正斜杠（zip文件标准）
+                        arcname = arcname.replace(os.sep, '/')
+                    except ValueError:
+                        # 如果文件不在同一驱动器上（Windows），使用文件名
+                        arcname = os.path.basename(file_path)
+                    zipf.write(file_path, arcname)
+                    print(f"[INFO] 已添加文件到 all.zip: {arcname}")
+        
+        print(f"[INFO] 已创建 all.zip: {zip_filename}")
+        return zip_filename
+    except Exception as e:
+        print(f"[ERROR] 创建 all.zip 时出错: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -1223,6 +1268,7 @@ def render_interface() -> gr.Blocks:
             task_audio_results = {}  # 存储每个任务的音频结果 {text_idx: audio_result}
             task_zip_files = {}  # 存储每个任务的zip文件 {text_idx: zip_file_path}
             all_complete_audio_files = []  # 存储所有任务的完整音频文件路径，用于合并
+            all_generated_files = []  # 存储所有生成的文件路径，用于创建all.zip
             
             # 循环处理所有任务
             for task_idx, (text_idx, target_text) in enumerate(zip(valid_indices, valid_texts)):
@@ -1242,6 +1288,9 @@ def render_interface() -> gr.Blocks:
                     # 保存每个任务的音频结果和zip文件
                     task_audio_results[text_idx] = audio_result
                     task_zip_files[text_idx] = zip_file_path
+                    
+                    # 收集所有生成的文件，用于创建all.zip
+                    all_generated_files.extend(saved_files)
                     
                     # 收集完整对话音频文件路径，用于后续合并
                     complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
@@ -1341,17 +1390,27 @@ def render_interface() -> gr.Blocks:
                     if merged_audio_data is not None:
                         sf.write(merged_audio_path, merged_audio_data, sample_rate)
                         print(f"[INFO] 已合并所有任务音频到: {merged_audio_path}")
+                        # 将合并的音频文件添加到所有文件列表中
+                        all_generated_files.append(merged_audio_path)
                 except Exception as e:
                     print(f"[ERROR] 合并音频文件时出错: {str(e)}")
                     import traceback
                     traceback.print_exc()
             
+            # 创建包含所有文件的 all.zip
+            all_zip_path = None
+            if all_generated_files:
+                all_zip_path = create_all_zip(base_output_dir, all_generated_files)
+            
             # 合并所有任务的信息
             final_info_message = f"📂 所有任务文件保存在统一的时间戳文件夹中:\n"
             final_info_message += f"   {os.path.abspath(base_output_dir)}\n"
             final_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n"
+            final_info_message += f"   分段语音保存在各任务子文件夹的 separated/ 子文件夹中\n"
             if merged_audio_path and os.path.exists(merged_audio_path):
                 final_info_message += f"   📁 合并音频文件: {os.path.basename(merged_audio_path)}\n"
+            if all_zip_path and os.path.exists(all_zip_path):
+                final_info_message += f"   📦 所有文件压缩包: {os.path.basename(all_zip_path)}\n"
             final_info_message += "\n"
             final_info_message += "═══════════════════════════════════\n\n"
             final_info_message += "\n\n".join(all_info_messages)
@@ -1360,10 +1419,28 @@ def render_interface() -> gr.Blocks:
             # 为每个任务生成音频预览和下载更新
             audio_preview_updates = []
             download_updates = []
+            
+            # 优先使用 all.wav 文件作为所有任务的音频预览
+            preview_audio_value = None
+            if merged_audio_path and os.path.exists(merged_audio_path):
+                try:
+                    # 读取 all.wav 文件
+                    audio_data, sample_rate = sf.read(merged_audio_path)
+                    preview_audio_value = (sample_rate, audio_data)
+                except Exception as e:
+                    print(f"[WARNING] 读取 all.wav 文件失败: {str(e)}")
+                    # 如果读取失败，使用最后一个任务的音频结果作为后备
+                    if task_audio_results:
+                        last_audio_result = list(task_audio_results.values())[-1]
+                        preview_audio_value = last_audio_result
+            elif task_audio_results:
+                # 如果没有 all.wav，使用最后一个任务的音频结果
+                last_audio_result = list(task_audio_results.values())[-1]
+                preview_audio_value = last_audio_result
+            
             for i in range(MAX_TEXT_INPUTS):
                 if i in task_audio_results:
                     # 该任务有结果，显示音频预览和下载
-                    audio_result = task_audio_results[i]
                     zip_file_path = task_zip_files.get(i)
                     
                     # 根据当前语言设置标签
@@ -1374,9 +1451,10 @@ def render_interface() -> gr.Blocks:
                         audio_label = f"Task {i+1} Audio Preview"
                         download_label = f"Task {i+1} Download"
                     
+                    # 使用 all.wav 作为预览音频（如果存在）
                     audio_preview_updates.append(gr.update(
                         visible=True,
-                        value=audio_result,
+                        value=preview_audio_value,
                         label=audio_label
                     ))
                     
@@ -1393,9 +1471,13 @@ def render_interface() -> gr.Blocks:
                     audio_preview_updates.append(gr.update(visible=False))
                     download_updates.append(gr.update(visible=False))
             
-            # 返回最后一个任务的音频和zip文件（保持向后兼容）
+            # 返回 all.zip 文件（包含所有任务的文件）
             download_file_update = None
-            if last_zip_file_path and os.path.exists(last_zip_file_path):
+            if all_zip_path and os.path.exists(all_zip_path):
+                download_label = f"{i18n('download_all_files_label')} - all.zip"
+                download_file_update = gr.update(visible=True, value=all_zip_path, label=download_label)
+            elif last_zip_file_path and os.path.exists(last_zip_file_path):
+                # 如果没有 all.zip，则使用最后一个任务的zip（向后兼容）
                 download_label = f"{i18n('download_all_files_label')} - {os.path.basename(last_zip_file_path)}"
                 download_file_update = gr.update(visible=True, value=last_zip_file_path, label=download_label)
             else:
