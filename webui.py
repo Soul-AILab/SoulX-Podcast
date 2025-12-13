@@ -1,16 +1,22 @@
 import re
+import os
+import zipfile
+from collections import defaultdict
 import gradio as gr
 from tqdm import tqdm
 from argparse import ArgumentParser
-from typing import Literal, List, Tuple
+from typing import Literal, List, Tuple, Optional
 import sys
 import importlib.util
 from datetime import datetime
+import tempfile
+import shutil
 
 import torch
 import numpy as np  
 import random    
 import s3tokenizer
+import soundfile as sf
 
 from soulxpodcast.models.soulxpodcast import SoulXPodcast
 from soulxpodcast.config import Config, SoulXPodcastLLMConfig, SamplingParams
@@ -60,7 +66,7 @@ DIALECT_CHOICES = ["(无)", "sichuan", "yueyu", "henan"]
 
 EXAMPLES_LIST = [
     [
-        None, "", "", None, "", "", ""
+        None, "", "", None, "", "", None, "", "", None, "", "", ""
     ],
     [
         S1_PROMPT_WAV,
@@ -69,6 +75,8 @@ EXAMPLES_LIST = [
         S2_PROMPT_WAV,
         "呃，还有一个就是要跟大家纠正一点，就是我们在看电影的时候，尤其是游戏玩家，看电影的时候，在看到那个到西北那边的这个陕北民谣，嗯，这个可能在想，哎，是不是他是受到了黑神话的启发？",
         "",
+        None, "", "",
+        None, "", "",
         "[S1] 哈喽，AI时代的冲浪先锋们！欢迎收听《AI生活进行时》。啊，一个充满了未来感，然后，还有一点点，<|laughter|>神经质的播客节目，我是主持人小希。\n[S2] 哎，大家好呀！我是能唠，爱唠，天天都想唠的唠嗑！\n[S1] 最近活得特别赛博朋克哈！以前老是觉得AI是科幻片儿里的，<|sigh|> 现在，现在连我妈都用AI写广场舞文案了。\n[S2] 这个例子很生动啊。是的，特别是生成式AI哈，感觉都要炸了！ 诶，那我们今天就聊聊AI是怎么走进我们的生活的哈！",
     ],
     [
@@ -78,6 +86,8 @@ EXAMPLES_LIST = [
         S2_PROMPT_WAV,
         "呃，还有一个就是要跟大家纠正一点，就是我们在看电影的时候，尤其是游戏玩家，看电影的时候，在看到那个到西北那边的这个陕北民谣，嗯，这个可能在想，哎，是不是他是受到了黑神话的启发？",
         "<|Sichuan|>哎哟喂，这个搞反了噻！黑神话里头唱曲子的王二浪早八百年就在黄土高坡吼秦腔喽，游戏组专门跑切录的原汤原水，听得人汗毛儿都立起来！",
+        None, "", "",
+        None, "", "",
         "[S1] <|Sichuan|>各位《巴适得板》的听众些，大家好噻！我是你们主持人晶晶。今儿天气硬是巴适，不晓得大家是在赶路嘛，还是茶都泡起咯，准备跟我们好生摆一哈龙门阵喃？\n[S2] <|Sichuan|>晶晶好哦，大家安逸噻！我是李老倌。你刚开口就川味十足，摆龙门阵几个字一甩出来，我鼻子头都闻到茶香跟火锅香咯！\n[S1] <|Sichuan|>就是得嘛！李老倌，我前些天带个外地朋友切人民公园鹤鸣茶社坐了一哈。他硬是搞不醒豁，为啥子我们一堆人围到杯茶就可以吹一下午壳子，从隔壁子王嬢嬢娃儿耍朋友，扯到美国大选，中间还掺几盘斗地主。他说我们四川人简直是把摸鱼刻进骨子里头咯！\n[S2] <|Sichuan|>你那个朋友说得倒是有点儿趣，但他莫看到精髓噻。摆龙门阵哪是摸鱼嘛，这是我们川渝人特有的交际方式，更是一种活法。外省人天天说的松弛感，根根儿就在这龙门阵里头。今天我们就要好生摆一哈，为啥子四川人活得这么舒坦。就先从茶馆这个老窝子说起，看它咋个成了我们四川人的魂儿！",
     ],
     [
@@ -87,6 +97,8 @@ EXAMPLES_LIST = [
         S2_PROMPT_WAV,
         "呃，还有一个就是要跟大家纠正一点，就是我们在看电影的时候，尤其是游戏玩家，看电影的时候，在看到那个到西北那边的这个陕北民谣，嗯，这个可能在想，哎，是不是他是受到了黑神话的启发？",
         "<|Yue|>咪搞错啊！陕北民谣响度唱咗几十年，黑神话边有咁大面啊？你估佢哋抄游戏咩！",
+        None, "", "",
+        None, "", "",
         "[S1] <|Yue|>哈囉大家好啊，歡迎收聽我哋嘅節目。喂，我今日想問你樣嘢啊，你覺唔覺得，嗯，而家揸電動車，最煩，最煩嘅一樣嘢係咩啊？\n[S2] <|Yue|>梗係充電啦。大佬啊，搵個位都已經好煩，搵到個位仲要喺度等，你話快極都要半個鐘一個鐘，真係，有時諗起都覺得好冇癮。\n[S1] <|Yue|>係咪先。如果我而家同你講，充電可以快到同入油差唔多時間，你信唔信先？喂你平時喺油站入滿一缸油，要幾耐啊？五六分鐘？\n[S2] <|Yue|>差唔多啦，七八分鐘，點都走得啦。電車喎，可以做到咁快？你咪玩啦。",
     ],
     [
@@ -96,7 +108,9 @@ EXAMPLES_LIST = [
         S2_PROMPT_WAV,
         "呃，还有一个就是要跟大家纠正一点，就是我们在看电影的时候，尤其是游戏玩家，看电影的时候，在看到那个到西北那边的这个陕北民谣，嗯，这个可能在想，哎，是不是他是受到了黑神话的启发？",
         "<|Henan|>恁这想法真闹挺！陕北民谣比黑神话早几百年都有了，咱可不兴这弄颠倒啊，中不？恁这想法真闹挺！那陕北民谣在黄土高坡响了几百年，咋能说是跟黑神话学的咧？咱得把这事儿捋直喽，中不中！",
-        "[S1] <|Henan|>哎，大家好啊，欢迎收听咱这一期嘞《瞎聊呗，就这么说》，我是恁嘞老朋友，燕子。\n[S2] <|Henan|>大家好，我是老张。燕子啊，今儿瞅瞅你这个劲儿，咋着，是有啥可得劲嘞事儿想跟咱唠唠？\n[S1] <|Henan|>哎哟，老张，你咋恁懂我嘞！我跟你说啊，最近我刷手机，老是刷住些可逗嘞方言视频，特别是咱河南话，咦～我哩个乖乖，一听我都憋不住笑，咋说嘞，得劲儿哩很，跟回到家一样。\n[S2] <|Henan|>你这回可算说到根儿上了！河南话，咱往大处说说，中原官话，它真嘞是有一股劲儿搁里头。它可不光是说话，它脊梁骨后头藏嘞，是咱一整套、鲜鲜活活嘞过法儿，一种活人嘞道理。\n[S1] <|Henan|>活人嘞道理？哎，这你这一说，我嘞兴致“腾”一下就上来啦！觉住咱这嗑儿，一下儿从搞笑视频蹿到文化顶上了。那你赶紧给我白话白话，这里头到底有啥道道儿？我特别想知道——为啥一提起咱河南人，好些人脑子里“蹦”出来嘞头一个词儿，就是实在？这个实在，骨子里到底是啥嘞？",
+        None, "", "",
+        None, "", "",
+        "[S1] <|Henan|>哎，大家好啊，欢迎收听咱这一期嘞《瞎聊呗，就这么说》，我是恁嘞老朋友，燕子。\n[S2] <|Henan|>大家好，我是老张。燕子啊，今儿瞅瞅你这个劲儿，咋着，是有啥可得劲嘞事儿想跟咱唠唠？\n[S1] <|Henan|>哎哟，老张，你咋恁懂我嘞！我跟你说啊，最近我刷手机，老是刷住些可逗嘞方言视频，特别是咱河南话，咦～我哩个乖乖，一听我都憋不住笑，咋说嘞，得劲儿哩很，跟回到家一样。\n[S2] <|Henan|>你这回可算说到根儿上了！河南话，咱往大处说说，中原官话，它真嘞是有一股劲儿搁里头。它可不光是说话，它脊梁骨后头藏嘞，是咱一整套、鲜鲜活活嘞过法儿，一种活人嘞道理。\n[S1] <|Henan|>活人嘞道理？哎，这你这一说，我嘞兴致'腾'一下就上来啦！觉住咱这嗑儿，一下儿从搞笑视频蹿到文化顶上了。那你赶紧给我白话白话，这里头到底有啥道道儿？我特别想知道——为啥一提起咱河南人，好些人脑子里'蹦'出来嘞头一个词儿，就是实在？这个实在，骨子里到底是啥嘞？",
     ],
 ]
 
@@ -155,14 +169,56 @@ _i18n_key2lang_dict = dict(
         en="Dialect prompt text with prefix: <|Sichuan|>/<|Yue|>/<|Henan|> ",
         zh="带前缀方言提示词思维链文本，前缀如下：<|Sichuan|>/<|Yue|>/<|Henan|>，如：<|Sichuan|>走嘛，切吃那家新开的麻辣烫，听别个说味道硬是霸道得很，好吃到不摆了，去晚了还得排队！",
     ),
+    # Speaker3 Prompt
+    spk3_prompt_audio_label=dict(
+        en="Speaker 3 Prompt Audio",
+        zh="说话人 3 参考语音",
+    ),
+    spk3_prompt_text_label=dict(
+        en="Speaker 3 Prompt Text",
+        zh="说话人 3 参考文本",
+    ),
+    spk3_prompt_text_placeholder=dict(
+        en="text of speaker 3 Prompt audio.",
+        zh="说话人 3 参考文本",
+    ),
+    spk3_dialect_prompt_text_label=dict(
+        en="Speaker 3 Dialect Prompt Text",
+        zh="说话人 3 方言提示文本",
+    ),
+    spk3_dialect_prompt_text_placeholder=dict(
+        en="Dialect prompt text with prefix: <|Sichuan|>/<|Yue|>/<|Henan|> ",
+        zh="带前缀方言提示词思维链文本，前缀如下：<|Sichuan|>/<|Yue|>/<|Henan|>，如：<|Sichuan|>走嘛，切吃那家新开的麻辣烫，听别个说味道硬是霸道得很，好吃到不摆了，去晚了还得排队！",
+    ),
+    # Speaker4 Prompt
+    spk4_prompt_audio_label=dict(
+        en="Speaker 4 Prompt Audio",
+        zh="说话人 4 参考语音",
+    ),
+    spk4_prompt_text_label=dict(
+        en="Speaker 4 Prompt Text",
+        zh="说话人 4 参考文本",
+    ),
+    spk4_prompt_text_placeholder=dict(
+        en="text of speaker 4 Prompt audio.",
+        zh="说话人 4 参考文本",
+    ),
+    spk4_dialect_prompt_text_label=dict(
+        en="Speaker 4 Dialect Prompt Text",
+        zh="说话人 4 方言提示文本",
+    ),
+    spk4_dialect_prompt_text_placeholder=dict(
+        en="Dialect prompt text with prefix: <|Sichuan|>/<|Yue|>/<|Henan|> ",
+        zh="带前缀方言提示词思维链文本，前缀如下：<|Sichuan|>/<|Yue|>/<|Henan|>，如：<|Sichuan|>走嘛，切吃那家新开的麻辣烫，听别个说味道硬是霸道得很，好吃到不摆了，去晚了还得排队！",
+    ),
     # Dialogue input textbox
     dialogue_text_input_label=dict(
         en="Dialogue Text Input",
         zh="合成文本输入",
     ),
     dialogue_text_input_placeholder=dict(
-        en="[S1]text[S2]text[S1]text...",
-        zh="[S1]文本[S2]文本[S1]文本...",
+        en="[S1]text[S2]text[S3]text... (Use [S1], [S2], [S3], etc. to specify speakers)",
+        zh="[S1]文本[S2]文本[S3]文本... (使用 [S1], [S2], [S3] 等指定说话人)",
     ),
     # Generate button
     generate_btn_label=dict(
@@ -189,8 +245,122 @@ _i18n_key2lang_dict = dict(
     ),
     # Warining3: incomplete prompt info
     warn_incomplete_prompt=dict(
-        en="Please provide prompt audio and text for both speaker 1 and speaker 2",
-        zh="请提供说话人 1 与说话人 2 的参考语音与参考文本",
+        en="Please provide prompt audio and text for all speakers used in the dialogue",
+        zh="请为对话中使用的所有说话人提供参考语音与参考文本",
+    ),
+    # Speaker manage controls
+    add_speaker_btn_label=dict(
+        en="Add 1 Speaker",
+        zh="添加1个说话人",
+    ),
+    quick_add_num_label=dict(
+        en="Quick Add Count",
+        zh="快速添加数量",
+    ),
+    quick_add_btn_label=dict(
+        en="Quick Add",
+        zh="快速添加",
+    ),
+    select_all_btn_label=dict(
+        en="Select All",
+        zh="全选",
+    ),
+    select_none_btn_label=dict(
+        en="Select None",
+        zh="全不选",
+    ),
+    batch_delete_btn_label=dict(
+        en="Delete Selected",
+        zh="批量删除选中",
+    ),
+    # Separated audio files info
+    separated_files_info_label=dict(
+        en="Separated Audio Files Info",
+        zh="分离音频文件信息",
+    ),
+    separated_files_info_placeholder=dict(
+        en="Separated speaker audio files will be saved in outputs/separated_speakers/ directory",
+        zh="分离的说话者音频文件将保存在 outputs/separated_speakers/ 目录下",
+    ),
+    # Download files
+    download_all_files_label=dict(
+        en="Download All Audio Files (ZIP)",
+        zh="下载所有音频文件 (ZIP)",
+    ),
+    # File info messages
+    files_saved_to=dict(
+        en="Audio files saved to:",
+        zh="音频文件已保存到:",
+    ),
+    files_generated_count=dict(
+        en="Files generated this time (total: {count}):",
+        zh="本次生成的文件 (共 {count} 个):",
+    ),
+    complete_dialogue_audio=dict(
+        en="Complete Dialogue Audio",
+        zh="整体对话音频",
+    ),
+    speaker_label=dict(
+        en="Speaker {num}",
+        zh="说话者 {num}",
+    ),
+    complete_audio_label=dict(
+        en="(Complete Audio)",
+        zh="(完整音频)",
+    ),
+    zip_file_created=dict(
+        en="Zip file created: {filename}",
+        zh="压缩包已创建: {filename}",
+    ),
+    download_hint=dict(
+        en="(You can download all files below)",
+        zh="(可在下方下载所有文件)",
+    ),
+    no_files_saved=dict(
+        en="(No files saved, may be disabled or error occurred)",
+        zh="（未保存文件，可能已禁用或出现错误）",
+    ),
+    # Different speaker pause
+    diff_spk_pause_label=dict(
+        en="Different-speaker pause (ms)",
+        zh="不同说话者间停顿(ms)",
+    ),
+    # Log messages (for console)
+    log_saved_complete_dialogue=dict(
+        en="Saved complete dialogue audio",
+        zh="已保存整体对话音频",
+    ),
+    log_saved_speaker_complete=dict(
+        en="Saved speaker {num} complete audio",
+        zh="已保存说话者 {num} 完整音频",
+    ),
+    log_saved_speaker_part=dict(
+        en="Saved speaker {num} part {part}",
+        zh="已保存说话者 {num} 片段 {part}",
+    ),
+    log_all_files_saved=dict(
+        en="All audio files saved to: {dir}",
+        zh="所有音频文件已保存到: {dir}",
+    ),
+    log_total_files_saved=dict(
+        en="Total {count} files saved",
+        zh="共保存 {count} 个文件",
+    ),
+    log_file_added_to_zip=dict(
+        en="Added file to zip: {filename}",
+        zh="已添加文件到压缩包: {filename}",
+    ),
+    log_zip_created=dict(
+        en="Zip file created: {filename}",
+        zh="压缩包已创建: {filename}",
+    ),
+    log_error_saving_files=dict(
+        en="Error saving audio files: {error}",
+        zh="保存音频文件时出错: {error}",
+    ),
+    log_error_creating_zip=dict(
+        en="Error creating zip file: {error}",
+        zh="创建压缩包时出错: {error}",
     ),
 )
 
@@ -200,6 +370,13 @@ global_lang: Literal["zh", "en"] = "zh"
 def i18n(key):
     global global_lang
     return _i18n_key2lang_dict[key][global_lang]
+
+def get_select_speaker_label(idx: int) -> str:
+    """返回带语言的 选择说话人/Select Speaker 标签。"""
+    global global_lang
+    if global_lang == "en":
+        return f"Select Speaker {idx}"
+    return f"选择说话人 {idx}"
 
 def check_monologue_text(text: str, prefix: str = None) -> bool:
     text = text.strip()
@@ -226,25 +403,36 @@ def check_dialect_prompt_text(text: str, prefix: str = None) -> bool:
         return False
     return True
 
-def check_dialogue_text(text_list: List[str]) -> bool:
+def check_dialogue_text(text_list: List[str], max_speakers: int = None) -> bool:
     if len(text_list) == 0:
         return False
     for text in text_list:
-        if not (
-            check_monologue_text(text, "[S1]")
-            or check_monologue_text(text, "[S2]")
-            or check_monologue_text(text, "[S3]")
-            or check_monologue_text(text, "[S4]")
-        ):
+        # 检查是否匹配 [S1] 到 [S{max_speakers}] 格式
+        pattern = r'^\[S([1-9]|[1-9][0-9]+)\].*'
+        match = re.match(pattern, text.strip(), flags=re.DOTALL)
+        if not match:
+            return False
+        spk_num = int(match.group(1))
+        if spk_num < 1:
+            return False
+        if max_speakers is not None and spk_num > max_speakers:
             return False
     return True
 
 def process_single(target_text_list, prompt_wav_list, prompt_text_list, use_dialect_prompt, dialect_prompt_text):
     spks, texts = [], []
     for target_text in target_text_list:
-        pattern = r'(\[S[1-9]\])(.+)'
-        match = re.match(pattern, target_text)
-        text, spk = match.group(2), int(match.group(1)[2])-1
+        pattern = r'(\[S([1-9]|[1-9][0-9]+)\])(.+)'
+        match = re.match(pattern, target_text, flags=re.DOTALL)
+        if not match:
+            print(f"process_single: target_text: {target_text}, not match")
+            continue
+        # spk_num = match.group(1)  # 说话人编号
+        # text = match.group(2).strip()  # 内容部分
+        spk_num = int(match.group(2))
+        text = match.group(3).strip()
+        print(f"process_single: target_text: \nstart{target_text}\nend, spk_num: {spk_num},\n text: \nstart{text}\nend")
+        spk = spk_num - 1  # S1->0, S2->1, etc.
         spks.append(spk)
         texts.append(text)
     
@@ -295,33 +483,107 @@ def process_single(target_text_list, prompt_wav_list, prompt_text_list, use_dial
 
 def dialogue_synthesis_function(
     target_text: str,
-    spk1_prompt_text: str | None = "",
-    spk1_prompt_audio: str | None = None,
-    spk1_dialect_prompt_text: str | None = "",
-    spk2_prompt_text: str | None = "",
-    spk2_prompt_audio: str | None = None,
-    spk2_dialect_prompt_text: str | None = "",
+    speaker_configs_list: List[Tuple[str, str, str]],  # List of (prompt_text, prompt_audio, dialect_prompt_text)
     seed: int = 1988,
+    diff_spk_pause_ms: int = 0,
+    output_dir: Optional[str] = None,
+    save_separated: bool = True,
+    timestamp: Optional[str] = None,
 ):
-    
+    """
+    合成对话音频
+    speaker_configs_list: 说话人配置列表，每个元素为 (prompt_text, prompt_audio, dialect_prompt_text)
+    output_dir: 输出目录，用于保存分离的说话者音频文件
+    save_separated: 是否保存分离的说话者音频文件
+    timestamp: 时间戳（如果不提供则自动生成）
+    """
     seed = int(seed)
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
 
     # Check prompt info
-    target_text_list: List[str] = re.findall(r"(\[S[0-9]\][^\[\]]*)", target_text)
-    target_text_list = [text.strip() for text in target_text_list]
-    if not check_dialogue_text(target_text_list):
+    # 匹配 [S1]... 到下一个 [Sx] 或文本结尾
+    # 使用非贪婪匹配，允许中间包含其他方括号标签（如 [laughter], [breath] 等）
+    pattern = r'\[S([1-9]|[1-9][0-9]+)\](.*?)(?=\[S([1-9]|[1-9][0-9]+)\]|$)'
+    matches = list(re.finditer(pattern, target_text, re.DOTALL))
+    # 重新组合完整匹配：说话人标签 + 内容
+    # 支持内联停顿标记：<|pause:MS|>，用于同一说话人内部停顿
+    target_text_list: List[str] = []
+    spk_seq: List[int] = []
+    pause_after_ms_list: List[int] = []  # 与target_text_list对齐，表示该片段结束后需要插入的停顿（毫秒）
+    pause_token_pattern = re.compile(r'<\|pause:(\d+)\|>')
+    for match in matches:
+        spk_num_str = match.group(1)  # 说话人编号
+        content = match.group(2)  # 内容部分
+        try:
+            spk_num_int = int(spk_num_str)
+        except Exception:
+            spk_num_int = -1
+        # 按停顿标记拆分内容，保留分隔符（不单独捕获数字，避免被当作文本）
+        parts = re.split(r'(<\|pause:\d+\|>)', content)
+        last_idx_with_text = None
+        for p in parts:
+            if p is None or p == '':
+                continue
+            pause_m = pause_token_pattern.fullmatch(p.strip())
+            if pause_m is not None:
+                # 设置上一个文本片段的停顿时间
+                if last_idx_with_text is not None:
+                    try:
+                        pause_ms = int(pause_m.group(1))
+                    except Exception:
+                        pause_ms = 0
+                    pause_after_ms_list[last_idx_with_text] = max(0, pause_ms)
+                continue
+            # 正常文本片段
+            text_part = p.strip()
+            if len(text_part) == 0:
+                continue
+            full_text = f"[S{spk_num_str}]{text_part}"
+            target_text_list.append(full_text)
+            spk_seq.append(spk_num_int)
+            pause_after_ms_list.append(0)  # 默认无停顿，可能被后续<|pause:...|>覆盖
+            last_idx_with_text = len(target_text_list) - 1
+    
+    # 找出对话中使用的最大说话人编号
+    max_spk_used = 0
+    for text in target_text_list:
+        match = re.match(r'\[S([1-9]|[1-9][0-9]+)\]', text)
+        if match:
+            spk_num = int(match.group(1))
+            max_spk_used = max(max_spk_used, spk_num)
+    
+    if max_spk_used == 0:
+        gr.Warning(message="对话文本中未找到有效的说话人标签（[S1], [S2]等）")
+        return None
+    
+    num_speakers = len(speaker_configs_list)
+    if max_spk_used > num_speakers:
+        gr.Warning(message=f"对话中使用了[S{max_spk_used}]，但只提供了{num_speakers}个说话人配置")
+        return None
+    
+    if not check_dialogue_text(target_text_list, max_speakers=num_speakers):
+        print(f"dialogue_synthesis_function: target_text_list: {target_text_list}, not match")
         gr.Warning(message=i18n("warn_invalid_dialogue_text"))
         return None
 
+    # 检查所有使用的说话人是否都有配置
+    for i in range(max_spk_used):
+        if i >= len(speaker_configs_list):
+            gr.Warning(message=f"说话人 {i+1} 缺少配置")
+            return None
+        config = speaker_configs_list[i]
+        if not config[1] or not config[0]:
+            gr.Warning(message=f"说话人 {i+1} 缺少参考语音或参考文本")
+            return None
+
     # Go synthesis
     progress_bar = gr.Progress(track_tqdm=True)
-    prompt_wav_list = [spk1_prompt_audio, spk2_prompt_audio]
-    prompt_text_list = [spk1_prompt_text, spk2_prompt_text] 
-    use_dialect_prompt = spk1_dialect_prompt_text.strip()!="" or spk2_dialect_prompt_text.strip()!=""
-    dialect_prompt_text_list = [spk1_dialect_prompt_text, spk2_dialect_prompt_text]
+    prompt_wav_list = [config[1] for config in speaker_configs_list[:max_spk_used]]
+    prompt_text_list = [config[0] for config in speaker_configs_list[:max_spk_used]]
+    use_dialect_prompt = any(config[2].strip() != "" for config in speaker_configs_list[:max_spk_used])
+    dialect_prompt_text_list = [config[2] for config in speaker_configs_list[:max_spk_used]]
     data = process_single(
         target_text_list,
         prompt_wav_list,
@@ -333,12 +595,186 @@ def dialogue_synthesis_function(
         **data
     )
     target_audio = None
-    for i in range(len(results_dict['generated_wavs'])):
+    sample_rate = 24000
+    num_segments = len(results_dict['generated_wavs'])
+    saved_files = []  # 保存生成的文件路径列表
+    
+    # 验证片段数量是否匹配
+    if num_segments != len(spk_seq):
+        print(f"[WARNING] 音频片段数量 ({num_segments}) 与说话者序列长度 ({len(spk_seq)}) 不匹配")
+    
+    # 按顺序记录生成的音频片段
+    ordered_segment_infos: List[dict] = []
+    speaker_part_counter: dict[int, int] = defaultdict(int)
+    
+    for i in range(num_segments):
+        seg = results_dict['generated_wavs'][i]
+        
+        # 记录每个片段属于哪个说话者（spk_seq 是1-based的，S1=1, S2=2等）
+        if i < len(spk_seq):
+            current_speaker = spk_seq[i]
+            if current_speaker > 0:  # 确保说话者编号有效
+                speaker_part_counter[current_speaker] += 1
+                part_idx = speaker_part_counter[current_speaker]
+                # 保存音频片段（深拷贝以避免设备问题）
+                seg_copy = seg.clone().detach()
+                ordered_segment_infos.append({
+                    "turn_index": i,
+                    "speaker": current_speaker,
+                    "part_idx": part_idx,
+                    "audio": seg_copy,
+                })
+        
+        # 合并到整体音频
         if target_audio is None:
-            target_audio = results_dict['generated_wavs'][i]
+            target_audio = seg
         else:
-            target_audio = torch.concat([target_audio, results_dict['generated_wavs'][i]], axis=1)
-    return (24000, target_audio.cpu().squeeze(0).numpy())
+            # 在不同说话者之间插入静音
+            prefer_ms = 0
+            if i > 0 and (i - 1) < len(pause_after_ms_list):
+                prefer_ms = int(pause_after_ms_list[i - 1])
+            if prefer_ms <= 0:
+                insert_silence = False
+                if i > 0 and (i - 1) < len(spk_seq) and i < len(spk_seq):
+                    prev_spk = spk_seq[i - 1]
+                    curr_spk = spk_seq[i]
+                    insert_silence = (prev_spk != curr_spk)
+                if insert_silence and diff_spk_pause_ms and diff_spk_pause_ms > 0:
+                    prefer_ms = int(diff_spk_pause_ms)
+            if prefer_ms and prefer_ms > 0:
+                silence_len = int((prefer_ms / 1000.0) * sample_rate)
+                if silence_len > 0:
+                    silence = torch.zeros((1, silence_len), dtype=seg.dtype, device=seg.device)
+                    target_audio = torch.concat([target_audio, silence], dim=1)
+            target_audio = torch.concat([target_audio, seg], dim=1)
+    
+    # 保存音频文件
+    if save_separated and output_dir:
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            if timestamp is None:
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 创建separated子文件夹用于保存分段语音
+            separated_dir = os.path.join(output_dir, "separated")
+            os.makedirs(separated_dir, exist_ok=True)
+            
+            # 文件序号计数器（从1开始）
+            file_counter = 1
+            
+            # 保存整体音频文件（包含所有说话者的连贯音频，不参与编号）
+            if target_audio is not None:
+                complete_audio_filename = os.path.join(output_dir, "complete_dialogue.wav")
+                sf.write(complete_audio_filename, target_audio.cpu().squeeze(0).numpy(), sample_rate)
+                saved_files.append(complete_audio_filename)
+                print(f"[INFO] {i18n('log_saved_complete_dialogue')}: {complete_audio_filename}")
+            
+            # 按对话顺序保存分离的说话者音频片段到separated子文件夹
+            if ordered_segment_infos:
+                for seg_info in ordered_segment_infos:
+                    seg_audio_np = seg_info["audio"].cpu().squeeze(0).numpy()
+                    part_filename = os.path.join(
+                        separated_dir,
+                        f"{file_counter:03d}_speaker{seg_info['speaker']}_part{seg_info['part_idx']}.wav"
+                    )
+                    sf.write(part_filename, seg_audio_np, sample_rate)
+                    saved_files.append(part_filename)
+                    print(f"[INFO] {i18n('log_saved_speaker_part').format(num=seg_info['speaker'], part=seg_info['part_idx'])}: {part_filename}")
+                    file_counter += 1
+            
+            if saved_files:
+                print(f"[INFO] {i18n('log_all_files_saved').format(dir=output_dir)}")
+                print(f"[INFO] {i18n('log_total_files_saved').format(count=len(saved_files))}")
+        except Exception as e:
+            print(f"[ERROR] {i18n('log_error_saving_files').format(error=str(e))}")
+            import traceback
+            traceback.print_exc()
+    
+    return (sample_rate, target_audio.cpu().squeeze(0).numpy()), saved_files
+
+
+def create_zip_file(file_list: List[str], output_dir: str, timestamp: str = None, file_number: int = None) -> Optional[str]:
+    """
+    创建包含所有文件的 zip 压缩包
+    
+    Args:
+        file_list: 要打包的文件路径列表
+        output_dir: 输出目录
+        timestamp: 时间戳（如果不提供则自动生成）
+        file_number: 文件序号（用于文件名前缀）
+    
+    Returns:
+        zip 文件路径，如果失败则返回 None
+    """
+    if not file_list:
+        return None
+    
+    try:
+        if timestamp is None:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # 如果提供了文件序号，则在文件名前添加序号前缀
+        if file_number is not None:
+            zip_filename = os.path.join(output_dir, f"{file_number:03d}_all_audio_files.zip")
+        else:
+            zip_filename = os.path.join(output_dir, "all_audio_files.zip")
+        
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in file_list:
+                if os.path.exists(file_path):
+                    # 只保存文件名，不包含完整路径
+                    arcname = os.path.basename(file_path)
+                    zipf.write(file_path, arcname)
+                    print(f"[INFO] {i18n('log_file_added_to_zip').format(filename=arcname)}")
+        
+        print(f"[INFO] {i18n('log_zip_created').format(filename=zip_filename)}")
+        return zip_filename
+    except Exception as e:
+        print(f"[ERROR] {i18n('log_error_creating_zip').format(error=str(e))}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def create_all_zip(base_output_dir: str, all_files: List[str]) -> Optional[str]:
+    """
+    创建包含所有任务文件的 all.zip 压缩包，保持目录结构
+    
+    Args:
+        base_output_dir: 基础输出目录（时间戳文件夹）
+        all_files: 所有要打包的文件路径列表
+    
+    Returns:
+        all.zip 文件路径，如果失败则返回 None
+    """
+    if not all_files:
+        return None
+    
+    try:
+        zip_filename = os.path.join(base_output_dir, "all.zip")
+        
+        with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for file_path in all_files:
+                if os.path.exists(file_path):
+                    # 保持相对路径结构，相对于base_output_dir
+                    # 使用 os.path.relpath 更安全，可以处理各种路径格式
+                    try:
+                        arcname = os.path.relpath(file_path, base_output_dir)
+                        # 确保路径使用正斜杠（zip文件标准）
+                        arcname = arcname.replace(os.sep, '/')
+                    except ValueError:
+                        # 如果文件不在同一驱动器上（Windows），使用文件名
+                        arcname = os.path.basename(file_path)
+                    zipf.write(file_path, arcname)
+                    print(f"[INFO] 已添加文件到 all.zip: {arcname}")
+        
+        print(f"[INFO] 已创建 all.zip: {zip_filename}")
+        return zip_filename
+    except Exception as e:
+        print(f"[ERROR] 创建 all.zip 时出错: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def update_example_choices(dialect_key: str):
@@ -361,6 +797,35 @@ def update_prompt_text(dialect_key: str, example_key: str):
     return gr.update(value=full_text)
 
 
+def create_speaker_group(spk_num: int):
+    """创建一个说话人组件组"""
+    with gr.Group(visible=True) as group:
+        # 添加复选框用于选择删除
+        checkbox = gr.Checkbox(
+            label=get_select_speaker_label(spk_num),
+            value=False,
+            scale=0,
+        )
+        prompt_audio = gr.Audio(
+            label=f"说话人 {spk_num} 参考语音",
+            type="filepath",
+            editable=False,
+            interactive=True,
+        )
+        prompt_text = gr.Textbox(
+            label=f"说话人 {spk_num} 参考文本",
+            placeholder=f"说话人 {spk_num} 参考文本",
+            lines=3,
+        )
+        dialect_prompt_text = gr.Textbox(
+            label=f"说话人 {spk_num} 方言提示文本",
+            placeholder="带前缀方言提示词思维链文本，前缀如下：<|Sichuan|>/<|Yue|>/<|Henan|>",
+            value="",
+            lines=3,
+        )
+    return group, checkbox, prompt_audio, prompt_text, dialect_prompt_text
+
+
 def render_interface() -> gr.Blocks:
     with gr.Blocks(title="SoulX-Podcast", theme=gr.themes.Default()) as page:
 
@@ -381,56 +846,268 @@ def render_interface() -> gr.Blocks:
                 scale=1,
             )
 
+        # 说话人状态管理（最多支持10个说话人）
+        MAX_SPEAKERS = 10
+        speakers_state = gr.State(value=1)  # 当前说话人数量
+        
+        # 创建所有说话人组件（最多10个）
+        speaker_checkbox_list = []
+        speaker_audio_list = []
+        speaker_text_list = []
+        speaker_dialect_list = []
+        speaker_columns = []
+        
+        with gr.Row() as speakers_row:
+            for i in range(MAX_SPEAKERS):
+                with gr.Column(scale=1, visible=(i < 1)) as col:
+                    group, checkbox, audio, text, dialect = create_speaker_group(i + 1)
+                    speaker_checkbox_list.append(checkbox)
+                    speaker_audio_list.append(audio)
+                    speaker_text_list.append(text)
+                    speaker_dialect_list.append(dialect)
+                    speaker_columns.append(col)
+        
+        # 添加/删除说话人按钮
         with gr.Row():
+            add_speaker_btn = gr.Button(f"➕ {i18n('add_speaker_btn_label')}", variant="secondary", scale=1)
+            with gr.Group():
+                quick_add_num = gr.Number(
+                    label=i18n("quick_add_num_label"),
+                    value=1,
+                    minimum=1,
+                    maximum=MAX_SPEAKERS,
+                    step=1,
+                    precision=0,
+                    scale=1,
+                )
+                quick_add_btn = gr.Button(f"🚀 {i18n('quick_add_btn_label')}", variant="primary", scale=1)
+            select_all_btn = gr.Button(f"☑️ {i18n('select_all_btn_label')}", variant="secondary", scale=0)
+            select_none_btn = gr.Button(f"☐ {i18n('select_none_btn_label')}", variant="secondary", scale=0)
+            batch_delete_btn = gr.Button(f"🗑️ {i18n('batch_delete_btn_label')}", variant="stop", scale=1)
+        
+        def update_speakers_visibility(num_speakers):
+            """更新说话人列的可见性和标签"""
+            updates = []
+            for i in range(MAX_SPEAKERS):
+                visible = (i < num_speakers)
+                if visible:
+                    # 更新复选框标签
+                    updates.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
+                else:
+                    updates.append(gr.update(visible=False, value=False))
+            return updates
+        
+        def add_speaker(current_num):
+            """添加一个说话人"""
+            new_num = min(current_num + 1, MAX_SPEAKERS)
+            checkbox_updates = update_speakers_visibility(new_num)
+            column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
+            return new_num, *checkbox_updates, *column_updates
+        
+        def quick_add_speakers(current_num, add_count):
+            """快速添加指定数量的说话人"""
+            add_count = int(add_count) if add_count else 1
+            add_count = max(1, min(add_count, MAX_SPEAKERS - current_num))  # 确保不超过最大值
+            new_num = min(current_num + add_count, MAX_SPEAKERS)
+            checkbox_updates = update_speakers_visibility(new_num)
+            column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
+            return new_num, *checkbox_updates, *column_updates
+        
+        def batch_delete_speakers(current_num, *all_values):
+            """批量删除选中的说话人，并重新排列剩余说话人及其数据"""
+            # 分离复选框值和其他数据
+            # all_values格式: (checkbox1, audio1, text1, dialect1, checkbox2, audio2, text2, dialect2, ...)
+            checkbox_values = []
+            audio_values = []
+            text_values = []
+            dialect_values = []
+            
+            for i in range(MAX_SPEAKERS):
+                idx = i * 4
+                if idx < len(all_values):
+                    checkbox_values.append(all_values[idx])
+                    if idx + 1 < len(all_values):
+                        audio_values.append(all_values[idx + 1])
+                    if idx + 2 < len(all_values):
+                        text_values.append(all_values[idx + 2])
+                    if idx + 3 < len(all_values):
+                        dialect_values.append(all_values[idx + 3])
+            
+            # 找出所有选中的说话人索引
+            selected_indices = set([i for i, checked in enumerate(checkbox_values) if checked and i < current_num])
+            
+            if not selected_indices:
+                gr.Warning("请至少选择一个说话人进行删除")
+                checkbox_updates = update_speakers_visibility(current_num)
+                # 返回所有组件（复选框、音频、文本、方言）的更新，保持原值不变
+                result = []
+                for i in range(MAX_SPEAKERS):
+                    result.append(checkbox_updates[i])  # checkbox
+                    result.append(gr.update())  # audio - 保持原值
+                    result.append(gr.update())  # text - 保持原值
+                    result.append(gr.update())  # dialect - 保持原值
+                column_updates = [gr.update(visible=(i < current_num)) for i in range(MAX_SPEAKERS)]
+                return current_num, *result, *column_updates
+            
+            # 检查是否会删除所有说话人
+            remaining_count = current_num - len(selected_indices)
+            if remaining_count < 1:
+                gr.Warning("至少需要保留1个说话人")
+                checkbox_updates = update_speakers_visibility(current_num)
+                result = []
+                for i in range(MAX_SPEAKERS):
+                    result.append(checkbox_updates[i])
+                    result.append(gr.update())  # audio - 保持原值
+                    result.append(gr.update())  # text - 保持原值
+                    result.append(gr.update())  # dialect - 保持原值
+                column_updates = [gr.update(visible=(i < current_num)) for i in range(MAX_SPEAKERS)]
+                return current_num, *result, *column_updates
+            
+            # 找出保留的说话人索引
+            kept_indices = [i for i in range(current_num) if i not in selected_indices]
+            new_num = remaining_count
+            
+            # 重新排列数据：将保留的说话人数据移到前面
+            result = []
+            for i in range(MAX_SPEAKERS):
+                if i < new_num:
+                    # 保留的说话人，从kept_indices[i]位置取数据
+                    old_idx = kept_indices[i]
+                    # 更新复选框
+                    result.append(gr.update(visible=True, label=get_select_speaker_label(i + 1), value=False))
+                    # 更新音频（如果原位置有值则使用，否则为None）
+                    audio_val = audio_values[old_idx] if old_idx < len(audio_values) else None
+                    result.append(gr.update(value=audio_val))
+                    # 更新文本
+                    text_val = text_values[old_idx] if old_idx < len(text_values) else ""
+                    result.append(gr.update(value=text_val))
+                    # 更新方言
+                    dialect_val = dialect_values[old_idx] if old_idx < len(dialect_values) else ""
+                    result.append(gr.update(value=dialect_val))
+                else:
+                    # 隐藏的说话人，清空数据
+                    result.append(gr.update(visible=False, value=False))  # checkbox
+                    result.append(gr.update(value=None))  # audio
+                    result.append(gr.update(value=""))  # text
+                    result.append(gr.update(value=""))  # dialect
+            
+            # 列的更新
+            column_updates = [gr.update(visible=(i < new_num)) for i in range(MAX_SPEAKERS)]
+            
+            return new_num, *result, *column_updates
+        
+        add_speaker_btn.click(
+            fn=add_speaker,
+            inputs=[speakers_state],
+            outputs=[speakers_state] + speaker_checkbox_list + speaker_columns
+        )
+        
+        quick_add_btn.click(
+            fn=quick_add_speakers,
+            inputs=[speakers_state, quick_add_num],
+            outputs=[speakers_state] + speaker_checkbox_list + speaker_columns
+        )
+        
+        def select_all_checkboxes(current_num):
+            """全选所有可见的复选框"""
+            updates = []
+            for i in range(MAX_SPEAKERS):
+                if i < current_num:
+                    updates.append(gr.update(value=True))
+                else:
+                    updates.append(gr.update())
+            return updates
+        
+        def select_none_checkboxes(current_num):
+            """取消全选所有复选框"""
+            updates = []
+            for i in range(MAX_SPEAKERS):
+                updates.append(gr.update(value=False))
+            return updates
+        
+        select_all_btn.click(
+            fn=select_all_checkboxes,
+            inputs=[speakers_state],
+            outputs=speaker_checkbox_list
+        )
+        
+        select_none_btn.click(
+            fn=select_none_checkboxes,
+            inputs=[speakers_state],
+            outputs=speaker_checkbox_list
+        )
+        
+        # 准备所有输入组件（复选框、音频、文本、方言）
+        all_speaker_inputs_for_delete = []
+        for i in range(MAX_SPEAKERS):
+            all_speaker_inputs_for_delete.extend([
+                speaker_checkbox_list[i],
+                speaker_audio_list[i],
+                speaker_text_list[i],
+                speaker_dialect_list[i]
+            ])
+        
+        # 准备所有输出组件（复选框、音频、文本、方言）
+        all_speaker_outputs_for_delete = []
+        for i in range(MAX_SPEAKERS):
+            all_speaker_outputs_for_delete.extend([
+                speaker_checkbox_list[i],
+                speaker_audio_list[i],
+                speaker_text_list[i],
+                speaker_dialect_list[i]
+            ])
+        
+        batch_delete_btn.click(
+            fn=batch_delete_speakers,
+            inputs=[speakers_state] + all_speaker_inputs_for_delete,
+            outputs=[speakers_state] + all_speaker_outputs_for_delete + speaker_columns
+        )
 
-            with gr.Column(scale=1):
-                with gr.Group(visible=True) as spk1_prompt_group:
-                    spk1_prompt_audio = gr.Audio(
-                        label=i18n("spk1_prompt_audio_label"),
-                        type="filepath",
-                        editable=False,
-                        interactive=True,
-                    )
-                    spk1_prompt_text = gr.Textbox(
-                        label=i18n("spk1_prompt_text_label"),
-                        placeholder=i18n("spk1_prompt_text_placeholder"),
-                        lines=3,
-                    )
-                    spk1_dialect_prompt_text = gr.Textbox(
-                        label=i18n("spk1_dialect_prompt_text_label"),
-                        placeholder=i18n("spk1_dialect_prompt_text_placeholder"),
-                        value="",
-                        lines=3,
-                    )
-
-            with gr.Column(scale=1, visible=True):
-                with gr.Group(visible=True) as spk2_prompt_group:
-                    spk2_prompt_audio = gr.Audio(
-                        label=i18n("spk2_prompt_audio_label"),
-                        type="filepath",
-                        editable=False,
-                        interactive=True,
-                    )
-                    spk2_prompt_text = gr.Textbox(
-                        label=i18n("spk2_prompt_text_label"),
-                        placeholder=i18n("spk2_prompt_text_placeholder"),
-                        lines=3,
-                    )
-                    spk2_dialect_prompt_text = gr.Textbox(
-                        label=i18n("spk2_dialect_prompt_text_label"),
-                        placeholder=i18n("spk2_dialect_prompt_text_placeholder"),
-                        value="",
-                        lines=3,
-                    )
-
-            with gr.Column(scale=2):
+        # 多输入框配置
+        MAX_TEXT_INPUTS = 10
+        num_text_inputs_state = gr.State(value=1)  # 当前输入框数量
+        
+        with gr.Row():
+            num_text_inputs_selector = gr.Number(
+                label="输入框数量",
+                value=1,
+                minimum=1,
+                maximum=MAX_TEXT_INPUTS,
+                step=1,
+                precision=0,
+                interactive=True,
+                scale=1,
+            )
+        
+        # 创建多个文本输入框及其对应的预览和下载组件
+        dialogue_text_inputs_list = []
+        dialogue_audio_preview_list = []  # 每个任务的音频预览
+        dialogue_download_list = []  # 每个任务的下载链接
+        dialogue_text_inputs_container = gr.Column()
+        with dialogue_text_inputs_container:
+            for i in range(MAX_TEXT_INPUTS):
+                dialogue_text_input = gr.Textbox(
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}",
+                    placeholder=i18n("dialogue_text_input_placeholder"),
+                    lines=12,
+                    visible=(i < 1),
+                )
+                dialogue_text_inputs_list.append(dialogue_text_input)
+                
+                # 为每个任务添加音频预览和下载
                 with gr.Row():
-                    dialogue_text_input = gr.Textbox(
-                        label=i18n("dialogue_text_input_label"),
-                        placeholder=i18n("dialogue_text_input_placeholder"),
-                        lines=18,
+                    task_audio_preview = gr.Audio(
+                        label=f"任务 {i+1} 音频预览 / Task {i+1} Audio Preview",
+                        interactive=False,
+                        visible=False,  # 初始隐藏，只有在有结果时才显示
                     )
-
+                    task_download = gr.File(
+                        label=f"任务 {i+1} 下载 / Task {i+1} Download",
+                        visible=False,  # 初始隐藏，只有在有结果时才显示
+                    )
+                dialogue_audio_preview_list.append(task_audio_preview)
+                dialogue_download_list.append(task_download)
+        
         # Generate button
         with gr.Row():
             generate_btn = gr.Button(
@@ -439,139 +1116,472 @@ def render_interface() -> gr.Blocks:
                 scale=3,
                 size="lg",
             )
+            diff_spk_pause_input = gr.Number(
+                label=i18n("diff_spk_pause_label") if "diff_spk_pause_label" in _i18n_key2lang_dict else "不同说话者间停顿(ms) / Different-speaker pause (ms)",
+                value=0,
+                minimum=0,
+                step=50,
+                interactive=True,
+                scale=1,
+            )
         
         # Long output audio
         generate_audio = gr.Audio(
             label=i18n("generated_audio_label"),
             interactive=False,
         )
+        
+        # 显示分离音频文件保存信息
+        separated_files_info = gr.Textbox(
+            label=i18n("separated_files_info_label"),
+            placeholder=i18n("separated_files_info_placeholder"),
+            interactive=False,
+            lines=8,
+            visible=True,
+        )
+        
+        # 下载所有文件的文件组件
+        download_file = gr.File(
+            label=i18n("download_all_files_label"),
+            visible=False,
+        )
+        
+        # 更新输入框数量和可见性
+        def update_text_inputs_visibility(num_inputs):
+            """更新文本输入框的可见性"""
+            num = int(num_inputs) if num_inputs else 1
+            num = max(1, min(num, MAX_TEXT_INPUTS))
+            updates = []
+            audio_updates = []
+            download_updates = []
+            for i in range(MAX_TEXT_INPUTS):
+                is_visible = (i < num)
+                updates.append(gr.update(
+                    visible=is_visible,
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}"
+                ))
+                # 同时更新音频预览和下载组件的可见性（初始状态为隐藏，只有在有结果时才显示）
+                audio_updates.append(gr.update(visible=False))
+                download_updates.append(gr.update(visible=False))
+            return num, *updates, *audio_updates, *download_updates
+        
+        num_text_inputs_selector.change(
+            fn=update_text_inputs_visibility,
+            inputs=[num_text_inputs_selector],
+            outputs=[num_text_inputs_state] + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list
+        )
 
 
-        with gr.Row():
-            inputs_for_examples = [
-                spk1_prompt_audio,
-                spk1_prompt_text,
-                spk1_dialect_prompt_text,
-                spk2_prompt_audio,
-                spk2_prompt_text,
-                spk2_dialect_prompt_text,
-                dialogue_text_input,
-            ]
+        # 处理单个合成任务
+        def process_single_synthesis(target_text, num_speakers, seed, diff_spk_pause_ms, speaker_args, task_number, base_output_dir, timestamp):
+            """
+            处理单个合成任务
+            task_number: 任务编号（从1开始），用于创建子文件夹（如 001, 002, 003）
+            base_output_dir: 基础输出目录（时间戳文件夹）
+            timestamp: 统一的时间戳
+            """
+            # 收集说话人配置
+            speaker_configs = []
+            for i in range(0, min(num_speakers * 3, len(speaker_args)), 3):
+                if i + 2 < len(speaker_args):
+                    audio = speaker_args[i] if speaker_args[i] is not None else None
+                    text = speaker_args[i+1] if speaker_args[i+1] is not None else ""
+                    dialect = speaker_args[i+2] if speaker_args[i+2] is not None else ""
+                    speaker_configs.append((text, audio, dialect))
             
-            gr.Examples(
-                examples=EXAMPLES_LIST,
-                inputs=inputs_for_examples,
-                label="播客模板示例 (点击加载)",
-                examples_per_page=5,
+            # 创建任务编号子文件夹（如 001/, 002/, 003/）
+            task_subdir = f"{task_number:03d}"
+            output_dir = os.path.join(base_output_dir, task_subdir)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 生成音频
+            audio_result, saved_files = dialogue_synthesis_function(
+                target_text, 
+                speaker_configs, 
+                seed, 
+                int(diff_spk_pause_ms) if diff_spk_pause_ms is not None else 0,
+                output_dir=output_dir,
+                save_separated=True,
+                timestamp=timestamp
+            )
+            
+            # 创建压缩包
+            zip_file_path = None
+            if saved_files:
+                zip_file_number = len(saved_files)
+                zip_file_path = create_zip_file(saved_files, output_dir, timestamp, zip_file_number)
+            
+            return audio_result, saved_files, zip_file_path, output_dir
+        
+        # 收集说话人配置的包装函数（支持队列处理）
+        def collect_and_synthesize_queue(
+            num_text_inputs, num_speakers, seed, diff_spk_pause_ms, 
+            *all_text_and_speaker_args
+        ):
+            """
+            处理队列中的所有任务
+            all_text_and_speaker_args格式: (text1, text2, ..., textN, audio1, text1, dialect1, audio2, text2, dialect2, ...)
+            """
+            global global_lang
+            num_text = int(num_text_inputs) if num_text_inputs else 1
+            num_speaker = int(num_speakers)
+            
+            # 提取所有文本输入
+            text_inputs = list(all_text_and_speaker_args[:MAX_TEXT_INPUTS])
+            # 提取说话人参数
+            speaker_args = list(all_text_and_speaker_args[MAX_TEXT_INPUTS:])
+            
+            # 过滤出非空的文本输入
+            valid_texts = []
+            valid_indices = []
+            for i, text in enumerate(text_inputs[:num_text]):
+                if text and text.strip():
+                    valid_texts.append(text)
+                    valid_indices.append(i)
+            
+            if not valid_texts:
+                # 返回空结果，包括所有任务的音频预览和下载组件
+                empty_audio_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
+                empty_download_updates = [gr.update(visible=False) for _ in range(MAX_TEXT_INPUTS)]
+                return (
+                    None,
+                    "所有输入框均为空，请至少填写一个文本输入",
+                    gr.update(visible=False),
+                    gr.update(interactive=True),
+                    *empty_audio_updates,
+                    *empty_download_updates,
+                )
+            
+            # 生成统一的时间戳（所有任务共享同一个时间戳文件夹）
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            
+            # 创建基础输出目录（时间戳文件夹）
+            base_output_dir = os.path.join(os.getcwd(), "outputs", "separated_speakers", timestamp)
+            os.makedirs(base_output_dir, exist_ok=True)
+            
+            # 使用进度条显示队列处理进度
+            progress_bar = gr.Progress(track_tqdm=True)
+            all_results = []
+            all_info_messages = []
+            last_audio_result = None
+            last_zip_file_path = None
+            task_audio_results = {}  # 存储每个任务的音频结果 {text_idx: audio_result}
+            task_zip_files = {}  # 存储每个任务的zip文件 {text_idx: zip_file_path}
+            all_complete_audio_files = []  # 存储所有任务的完整音频文件路径，用于合并
+            all_generated_files = []  # 存储所有生成的文件路径，用于创建all.zip
+            
+            # 循环处理所有任务
+            for task_idx, (text_idx, target_text) in enumerate(zip(valid_indices, valid_texts)):
+                progress_bar((task_idx, len(valid_texts)), desc=f"处理任务 {task_idx + 1}/{len(valid_texts)}")
+                
+                try:
+                    # task_number 从1开始，用于创建子文件夹（001, 002, 003等）
+                    task_number = task_idx + 1
+                    audio_result, saved_files, zip_file_path, output_dir = process_single_synthesis(
+                        target_text, num_speaker, seed, diff_spk_pause_ms, speaker_args,
+                        task_number, base_output_dir, timestamp
+                    )
+                    
+                    last_audio_result = audio_result
+                    last_zip_file_path = zip_file_path
+                    
+                    # 保存每个任务的音频结果和zip文件
+                    task_audio_results[text_idx] = audio_result
+                    task_zip_files[text_idx] = zip_file_path
+                    
+                    # 收集所有生成的文件，用于创建all.zip
+                    all_generated_files.extend(saved_files)
+                    
+                    # 收集完整对话音频文件路径，用于后续合并
+                    complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
+                    if complete_files:
+                        all_complete_audio_files.extend(complete_files)
+                    
+                    # 构建任务信息
+                    task_subdir_name = f"{task_number:03d}"
+                    info_message = f"═══════════════════════════════════\n"
+                    info_message += f"任务 {task_idx + 1}/{len(valid_texts)} (输入框 {text_idx + 1})\n"
+                    info_message += f"═══════════════════════════════════\n"
+                    info_message += f"{i18n('files_saved_to')}\n"
+                    info_message += f"基础文件夹: {os.path.abspath(base_output_dir)}\n"
+                    info_message += f"任务子文件夹: {task_subdir_name}/\n"
+                    info_message += f"完整路径: {os.path.abspath(output_dir)}\n\n"
+                    
+                    if saved_files:
+                        info_message += f"{i18n('files_generated_count').format(count=len(saved_files))}\n\n"
+                        
+                        # 显示整体音频文件
+                        complete_files = [f for f in saved_files if "complete_dialogue" in os.path.basename(f)]
+                        if complete_files:
+                            info_message += f"📁 {i18n('complete_dialogue_audio')}:\n"
+                            for f in complete_files:
+                                info_message += f"  • {os.path.basename(f)}\n"
+                            info_message += "\n"
+                        
+                        # 按说话者编号分组显示
+                        speaker_groups = {}
+                        for f in saved_files:
+                            basename = os.path.basename(f)
+                            if "speaker" in basename and "complete_dialogue" not in basename:
+                                match = re.search(r'speaker(\d+)', basename)
+                                if match:
+                                    spk_num = match.group(1)
+                                    if spk_num not in speaker_groups:
+                                        speaker_groups[spk_num] = []
+                                    speaker_groups[spk_num].append(basename)
+                        
+                        # 按说话者编号排序显示
+                        for spk_num in sorted(speaker_groups.keys(), key=int):
+                            files = sorted(speaker_groups[spk_num])
+                            complete_audio = [f for f in files if "_complete_" in f]
+                            parts = [f for f in files if "_part" in f]
+                            
+                            info_message += f"🎤 {i18n('speaker_label').format(num=spk_num)}:\n"
+                            if complete_audio:
+                                for filename in complete_audio:
+                                    info_message += f"  • {filename} {i18n('complete_audio_label')}\n"
+                            if parts:
+                                for filename in sorted(parts):
+                                    info_message += f"  • {filename}\n"
+                            info_message += "\n"
+                        
+                        if zip_file_path:
+                            info_message += f"📦 {i18n('zip_file_created').format(filename=os.path.basename(zip_file_path))}\n"
+                            info_message += f"   {i18n('download_hint')}\n"
+                    else:
+                        info_message += f"{i18n('no_files_saved')}\n"
+                    
+                    all_info_messages.append(info_message)
+                    
+                except Exception as e:
+                    error_msg = f"任务 {task_idx + 1} 处理失败: {str(e)}\n"
+                    all_info_messages.append(error_msg)
+                    import traceback
+                    traceback.print_exc()
+            
+            # 合并所有任务的完整对话音频到一个总文件
+            merged_audio_path = None
+            if all_complete_audio_files and len(all_complete_audio_files) > 0:
+                try:
+                    merged_audio_path = os.path.join(base_output_dir, "all.wav")
+                    merged_audio_data = None
+                    sample_rate = 24000
+                    
+                    for audio_file in all_complete_audio_files:
+                        if os.path.exists(audio_file):
+                            audio_data, sr = sf.read(audio_file)
+                            if sample_rate != sr:
+                                # 如果采样率不一致，需要重采样（这里简化处理，假设都是24000）
+                                print(f"[WARNING] 采样率不一致: {audio_file} 为 {sr}Hz，期望 {sample_rate}Hz")
+                            
+                            # 确保音频数据是1D数组（单声道）
+                            if len(audio_data.shape) > 1:
+                                # 如果是立体声，转换为单声道（取平均值）
+                                audio_data = np.mean(audio_data, axis=1)
+                            
+                            if merged_audio_data is None:
+                                merged_audio_data = audio_data
+                            else:
+                                # 在不同任务之间添加短暂停顿（500ms）
+                                pause_samples = int(0.5 * sample_rate)  # 500ms停顿
+                                silence = np.zeros(pause_samples)
+                                merged_audio_data = np.concatenate([merged_audio_data, silence, audio_data])
+                    
+                    if merged_audio_data is not None:
+                        sf.write(merged_audio_path, merged_audio_data, sample_rate)
+                        print(f"[INFO] 已合并所有任务音频到: {merged_audio_path}")
+                        # 将合并的音频文件添加到所有文件列表中
+                        all_generated_files.append(merged_audio_path)
+                except Exception as e:
+                    print(f"[ERROR] 合并音频文件时出错: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # 创建包含所有文件的 all.zip
+            all_zip_path = None
+            if all_generated_files:
+                all_zip_path = create_all_zip(base_output_dir, all_generated_files)
+            
+            # 合并所有任务的信息
+            final_info_message = f"📂 所有任务文件保存在统一的时间戳文件夹中:\n"
+            final_info_message += f"   {os.path.abspath(base_output_dir)}\n"
+            final_info_message += f"   每个任务的文件保存在对应的编号子文件夹中 (001/, 002/, 003/, ...)\n"
+            final_info_message += f"   分段语音保存在各任务子文件夹的 separated/ 子文件夹中\n"
+            if merged_audio_path and os.path.exists(merged_audio_path):
+                final_info_message += f"   📁 合并音频文件: {os.path.basename(merged_audio_path)}\n"
+            if all_zip_path and os.path.exists(all_zip_path):
+                final_info_message += f"   📦 所有文件压缩包: {os.path.basename(all_zip_path)}\n"
+            final_info_message += "\n"
+            final_info_message += "═══════════════════════════════════\n\n"
+            final_info_message += "\n\n".join(all_info_messages)
+            final_info_message += f"\n\n✅ 已完成所有任务 ({len(valid_texts)}/{len(valid_texts)})"
+            
+            # 为每个任务生成音频预览和下载更新
+            audio_preview_updates = []
+            download_updates = []
+            
+            # 优先使用 all.wav 文件作为所有任务的音频预览
+            preview_audio_value = None
+            if merged_audio_path and os.path.exists(merged_audio_path):
+                try:
+                    # 读取 all.wav 文件
+                    audio_data, sample_rate = sf.read(merged_audio_path)
+                    preview_audio_value = (sample_rate, audio_data)
+                except Exception as e:
+                    print(f"[WARNING] 读取 all.wav 文件失败: {str(e)}")
+                    # 如果读取失败，使用最后一个任务的音频结果作为后备
+                    if task_audio_results:
+                        last_audio_result = list(task_audio_results.values())[-1]
+                        preview_audio_value = last_audio_result
+            elif task_audio_results:
+                # 如果没有 all.wav，使用最后一个任务的音频结果
+                last_audio_result = list(task_audio_results.values())[-1]
+                preview_audio_value = last_audio_result
+            
+            for i in range(MAX_TEXT_INPUTS):
+                if i in task_audio_results:
+                    # 该任务有结果，显示音频预览和下载
+                    zip_file_path = task_zip_files.get(i)
+                    
+                    # 根据当前语言设置标签
+                    if global_lang == "zh":
+                        audio_label = f"任务 {i+1} 音频预览"
+                        download_label = f"任务 {i+1} 下载"
+                    else:
+                        audio_label = f"Task {i+1} Audio Preview"
+                        download_label = f"Task {i+1} Download"
+                    
+                    # 使用 all.wav 作为预览音频（如果存在）
+                    audio_preview_updates.append(gr.update(
+                        visible=True,
+                        value=preview_audio_value,
+                        label=audio_label
+                    ))
+                    
+                    if zip_file_path and os.path.exists(zip_file_path):
+                        download_updates.append(gr.update(
+                            visible=True,
+                            value=zip_file_path,
+                            label=download_label
+                        ))
+                    else:
+                        download_updates.append(gr.update(visible=False))
+                else:
+                    # 该任务没有结果，隐藏组件
+                    audio_preview_updates.append(gr.update(visible=False))
+                    download_updates.append(gr.update(visible=False))
+            
+            # 返回 all.zip 文件（包含所有任务的文件）
+            download_file_update = None
+            if all_zip_path and os.path.exists(all_zip_path):
+                download_label = f"{i18n('download_all_files_label')} - all.zip"
+                download_file_update = gr.update(visible=True, value=all_zip_path, label=download_label)
+            elif last_zip_file_path and os.path.exists(last_zip_file_path):
+                # 如果没有 all.zip，则使用最后一个任务的zip（向后兼容）
+                download_label = f"{i18n('download_all_files_label')} - {os.path.basename(last_zip_file_path)}"
+                download_file_update = gr.update(visible=True, value=last_zip_file_path, label=download_label)
+            else:
+                download_file_update = gr.update(visible=False, value=None)
+            
+            return (
+                last_audio_result,
+                final_info_message,
+                download_file_update,
+                gr.update(interactive=True),  # 重新启用按钮
+                *audio_preview_updates,  # 每个任务的音频预览
+                *download_updates,  # 每个任务的下载链接
             )
         
-        with gr.Accordion("方言提示文本 (Dialect Prompt) 选择器", open=False):
-            gr.Markdown("选择方言后，请分别为 S1 和 S2 选择一个示例。")
-            dialect_selector = gr.Dropdown(
-                label="选择方言 (Select Dialect)", 
-                choices=DIALECT_CHOICES, 
-                value="(无)",
-                interactive=True
-            )
-            with gr.Row():
-                s1_dialect_example_selector = gr.Dropdown(
-                    label="S1 方言示例 (S1 Dialect Example)", 
-                    choices=["(请先选择方言)"], 
-                    value="(无)",
-                    interactive=True,
-                    elem_classes="gradio-dropdown" 
-                )
-                s2_dialect_example_selector = gr.Dropdown(
-                    label="S2 方言示例 (S2 Dialect Example)", 
-                    choices=["(请先选择方言)"], 
-                    value="(无)",
-                    interactive=True,
-                    elem_classes="gradio-dropdown" 
-                )
+        # 生成按钮点击事件（支持队列）
+        all_speaker_inputs = []
+        for i in range(MAX_SPEAKERS):
+            all_speaker_inputs.extend([
+                speaker_audio_list[i],
+                speaker_text_list[i],
+                speaker_dialect_list[i]
+            ])
         
-        dialect_selector.change(
-            fn=update_example_choices,
-            inputs=[dialect_selector],
-            outputs=[s1_dialect_example_selector, s2_dialect_example_selector]
+        generate_btn.click(
+            fn=collect_and_synthesize_queue,
+            inputs=(
+                [num_text_inputs_state] +
+                [speakers_state, seed_input, diff_spk_pause_input] +
+                dialogue_text_inputs_list +
+                all_speaker_inputs
+            ),
+            outputs=[
+                generate_audio, 
+                separated_files_info, 
+                download_file,
+                generate_btn,
+                *dialogue_audio_preview_list,  # 每个任务的音频预览
+                *dialogue_download_list,  # 每个任务的下载链接
+            ],
         )
         
-        s1_dialect_example_selector.change(
-            fn=update_prompt_text,
-            inputs=[dialect_selector, s1_dialect_example_selector],
-            outputs=[spk1_dialect_prompt_text]
-        )
-        
-        s2_dialect_example_selector.change(
-            fn=update_prompt_text,
-            inputs=[dialect_selector, s2_dialect_example_selector],
-            outputs=[spk2_dialect_prompt_text]
-        )
-
+        # 语言切换
         def _change_component_language(lang):
             global global_lang
             global_lang = ["zh", "en"][lang]
-            return [
-                
-                # spk1_prompt_{audio,text,dialect_prompt_text}
-                gr.update(label=i18n("spk1_prompt_audio_label")),
-                gr.update(
-                    label=i18n("spk1_prompt_text_label"),
-                    placeholder=i18n("spk1_prompt_text_placeholder"),
-                ),
-                gr.update(
-                    label=i18n("spk1_dialect_prompt_text_label"),
-                    placeholder=i18n("spk1_dialect_prompt_text_placeholder"),
-                ),
-                # spk2_prompt_{audio,text}
-                gr.update(label=i18n("spk2_prompt_audio_label")),
-                gr.update(
-                    label=i18n("spk2_prompt_text_label"),
-                    placeholder=i18n("spk2_prompt_text_placeholder"),
-                ),
-                gr.update(
-                    label=i18n("spk2_dialect_prompt_text_label"),
-                    placeholder=i18n("spk2_dialect_prompt_text_placeholder"),
-                ),
-                # dialogue_text_input
-                gr.update(
-                    label=i18n("dialogue_text_input_label"),
+            checkbox_updates = []
+            input_updates = []
+            # 先收集所有复选框更新
+            for i in range(MAX_SPEAKERS):
+                checkbox_updates.append(gr.update(label=get_select_speaker_label(i + 1)))
+            # 再收集所有音频/文本/方言更新，顺序需与 all_speaker_inputs 对齐
+            for i in range(MAX_SPEAKERS):
+                input_updates.extend([
+                    gr.update(label=i18n(f"spk{i+1}_prompt_audio_label") if f"spk{i+1}_prompt_audio_label" in _i18n_key2lang_dict else f"说话人 {i+1} 参考语音"),
+                    gr.update(
+                        label=i18n(f"spk{i+1}_prompt_text_label") if f"spk{i+1}_prompt_text_label" in _i18n_key2lang_dict else f"说话人 {i+1} 参考文本",
+                        placeholder=i18n(f"spk{i+1}_prompt_text_placeholder") if f"spk{i+1}_prompt_text_placeholder" in _i18n_key2lang_dict else f"说话人 {i+1} 参考文本",
+                    ),
+                    gr.update(
+                        label=i18n(f"spk{i+1}_dialect_prompt_text_label") if f"spk{i+1}_dialect_prompt_text_label" in _i18n_key2lang_dict else f"说话人 {i+1} 方言提示文本",
+                        placeholder=i18n(f"spk{i+1}_dialect_prompt_text_placeholder") if f"spk{i+1}_dialect_prompt_text_placeholder" in _i18n_key2lang_dict else "带前缀方言提示词思维链文本",
+                    ),
+                ])
+            updates = checkbox_updates + input_updates
+            # 添加多文本输入框的更新
+            for i in range(MAX_TEXT_INPUTS):
+                updates.append(gr.update(
+                    label=f"{i18n('dialogue_text_input_label')} {i+1}",
                     placeholder=i18n("dialogue_text_input_placeholder"),
-                ),
-                # generate_btn
+                ))
+            # 添加每个任务的音频预览和下载组件标签更新
+            for i in range(MAX_TEXT_INPUTS):
+                if global_lang == "zh":
+                    updates.append(gr.update(label=f"任务 {i+1} 音频预览"))
+                    updates.append(gr.update(label=f"任务 {i+1} 下载"))
+                else:
+                    updates.append(gr.update(label=f"Task {i+1} Audio Preview"))
+                    updates.append(gr.update(label=f"Task {i+1} Download"))
+            # 添加对话文本、生成按钮和音频输出
+            updates.extend([
                 gr.update(value=i18n("generate_btn_label")),
-                # generate_audio
                 gr.update(label=i18n("generated_audio_label")),
-            ]
-
+                # 添加/删除相关控件
+                gr.update(value=f"➕ {i18n('add_speaker_btn_label')}"),
+                gr.update(label=i18n('quick_add_num_label')),
+                gr.update(value=f"🚀 {i18n('quick_add_btn_label')}"),
+                gr.update(value=f"☑️ {i18n('select_all_btn_label')}"),
+                gr.update(value=f"☐ {i18n('select_none_btn_label')}"),
+                gr.update(value=f"🗑️ {i18n('batch_delete_btn_label')}"),
+                # 新增的分离文件和下载组件
+                gr.update(
+                    label=i18n("separated_files_info_label"),
+                    placeholder=i18n("separated_files_info_placeholder"),
+                ),
+                gr.update(label=i18n("download_all_files_label")),
+                # 不同说话者间停顿标签
+                gr.update(label=i18n("diff_spk_pause_label")),
+            ])
+            return updates
+        
         lang_choice.change(
             fn=_change_component_language,
             inputs=[lang_choice],
-            outputs=[
-                spk1_prompt_audio,
-                spk1_prompt_text,
-                spk1_dialect_prompt_text,
-                spk2_prompt_audio,
-                spk2_prompt_text,
-                spk2_dialect_prompt_text,
-                dialogue_text_input,
-                generate_btn,
-                generate_audio,
-            ],
-        )
-        
-        generate_btn.click(
-            fn=dialogue_synthesis_function,
-            inputs=[
-                dialogue_text_input,
-                spk1_prompt_text,
-                spk1_prompt_audio,
-                spk1_dialect_prompt_text,
-                spk2_prompt_text,
-                spk2_prompt_audio,
-                spk2_dialect_prompt_text,
-                seed_input,
-            ],
-            outputs=[generate_audio],
+            outputs=speaker_checkbox_list + all_speaker_inputs + dialogue_text_inputs_list + dialogue_audio_preview_list + dialogue_download_list + [generate_btn, generate_audio, add_speaker_btn, quick_add_num, quick_add_btn, select_all_btn, select_none_btn, batch_delete_btn, separated_files_info, download_file, diff_spk_pause_input],
         )
     return page
 
@@ -593,10 +1603,6 @@ def get_args():
                         type=int,
                         default=1988,
                         help='random seed for generation')
-    parser.add_argument('--port',
-                        type=int,
-                        default=7860,
-                        help='gradio port for web app')
     args = parser.parse_args()
     return args
 
@@ -626,4 +1632,4 @@ if __name__ == "__main__":
     print("[INFO] SoulX-Podcast loaded")    
     page = render_interface()
     page.queue()
-    page.launch(share=False, server_name="0.0.0.0", server_port=args.port)
+    page.launch(share=False)
