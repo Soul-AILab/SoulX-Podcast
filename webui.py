@@ -1903,10 +1903,10 @@ def render_interface() -> gr.Blocks:
                         audio_label = f"Task {i+1} Audio Preview"
                         download_label = f"Task {i+1} Download"
                     
-                    # 使用 all.wav 作为预览音频（如果存在）
+                    # 使用该任务自己的音频作为预览
                     audio_preview_updates.append(gr.update(
                         visible=True,
-                        value=preview_audio_value,
+                        value=task_audio_results[i],
                         label=audio_label
                     ))
                     
@@ -1936,7 +1936,7 @@ def render_interface() -> gr.Blocks:
                 download_file_update = gr.update(visible=False, value=None)
             
             return (
-                last_audio_result,
+                preview_audio_value,  # 使用 all.wav 作为合成的对话音频
                 final_info_message,
                 download_file_update,
                 gr.update(interactive=True),  # 重新启用按钮

@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "export_time": "2025-12-13 10:14:34",
+  "language": "zh",
+  "num_speakers": 2,
+  "num_text_inputs": 2,
+  "seed": 1988,
+  "diff_spk_pause_ms": 0,
+  "speakers": [
+    {
+      "prompt_audio": "/tmp/gradio/bf2dfc2b4940b4a9a565e980f6313e424a9f189cbda7905a26b1be0e1bd3858f/敖丙1.mp3",
+      "prompt_text": "五年多了，再次登台肯定还是有点儿，你不紧张吗？",
+      "dialect_prompt_text": ""
+    },
+    {
+      "prompt_audio": "/tmp/gradio/f2b287e0f747cdb9ea8ca421132c3518baba630ab72febb6f12cf25d43dfb66f/米小圈1.mp3",
+      "prompt_text": "这把钥匙一定很重要，失主到现在一定很着急。我按照字条上的地址来到一座山上，失主叔叔看到我把小盒子给他送回来高兴的都快哭了",
+      "dialect_prompt_text": ""
+    }
+  ],
+  "text_inputs": [
+    "[S1] 一 <|pause:600|> 听力测试（共四节，满分60分）<|pause:2000|>\n[S2] 第一节：<|pause:600|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:2000|>\n\n[S1] one, <|pause:1200|> N <|pause:1800|> N  <|pause:2000|>\n[S1] two, <|pause:1200|> Let's see. <|pause:1800|> Let's see. <|pause:2000|>\n[S1] three, <|pause:1200|> Look at my umbrella.",
+    "[S2] 一 <|pause:600|> 听力测试（共四节，满分60分）<|pause:2000|>\n[S1] 第一节：<|pause:600|>判断正误。一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:2000|>\n\n[S2] one, <|pause:1200|> N <|pause:1800|> N  <|pause:2000|>\n[S2] two, <|pause:1200|> Let's see. <|pause:1800|> Let's see. <|pause:2000|>\n[S2] three, <|pause:1200|> Look at my umbrella. "
+  ]
+}
