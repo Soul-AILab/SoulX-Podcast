@@ -12,3 +12,7 @@ onnxruntime
 onnxruntime-gpu
 einops
 gradio
+
+# Playback dependencies (required for live audio playback)
+sounddevice
+simpleaudio
