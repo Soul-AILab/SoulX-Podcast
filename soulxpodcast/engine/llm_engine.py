@@ -9,7 +9,7 @@ import torch
 import torch.multiprocessing as mp
 from transformers import AutoTokenizer, AutoModelForCausalLM, StoppingCriteriaList
 from transformers import EosTokenCriteria, RepetitionPenaltyLogitsProcessor
-try:    
+try:
     from vllm import LLM
     from vllm import SamplingParams as VllmSamplingParams
     from vllm.inputs import TokensPrompt as TokensPrompt
@@ -26,10 +26,15 @@ class HFLLMEngine:
         config_fields = {field.name for field in fields(Config)}
         config_kwargs = {k: v for k, v in kwargs.items() if k in config_fields}
         config = Config(model, **config_kwargs)
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
         config.eos = config.hf_config.eos_token_id # speech eos token;
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            self.device = "cuda:0"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
         self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.bfloat16, device_map=self.device)
         self.config = config
         self.pad_token_id = self.tokenizer.pad_token_id
@@ -40,11 +45,11 @@ class HFLLMEngine:
         sampling_param: SamplingParams,
         past_key_values=None,
     ) -> dict:
-        
+
         stopping_criteria = StoppingCriteriaList([EosTokenCriteria(eos_token_id=self.config.hf_config.eos_token_id)])
         if sampling_param.use_ras:
-            sample_hf_engine_handler = partial(_ras_sample_hf_engine, 
-                    use_ras=sampling_param.use_ras, 
+            sample_hf_engine_handler = partial(_ras_sample_hf_engine,
+                    use_ras=sampling_param.use_ras,
                     win_size=sampling_param.win_size, tau_r=sampling_param.tau_r)
         else:
             sample_hf_engine_handler = None
@@ -52,7 +57,7 @@ class HFLLMEngine:
             penalty=sampling_param.repetition_penalty,
             prompt_ignore_length=len(prompt)
         ) # exclude the input prompt, consistent with vLLM implementation;
-        with torch.no_grad(): 
+        with torch.no_grad():
             input_len = len(prompt)
             generated_ids = self.model.generate(
                 input_ids = torch.tensor([prompt], dtype=torch.int64).to(self.device),
@@ -78,14 +83,19 @@ class HFLLMEngine:
 class VLLMEngine:
 
     def __init__(self, model, **kwargs):
-        
+
         config_fields = {field.name for field in fields(Config)}
         config_kwargs = {k: v for k, v in kwargs.items() if k in config_fields}
         config = Config(model, **config_kwargs)
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(config.model, use_fast=True)
         config.eos = config.hf_config.eos_token_id # speech eos token;
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            self.device = "cuda:0"
+        elif torch.backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
         os.environ["VLLM_USE_V1"] = "0"
         if SUPPORT_VLLM:
             self.model = LLM(model=model, enforce_eager=True, dtype="bfloat16", max_model_len=8192, enable_prefix_caching=True,)
@@ -103,7 +113,7 @@ class VLLMEngine:
         sampling_param.stop_token_ids = [self.config.hf_config.eos_token_id]
         with torch.no_grad():
             generated_ids = self.model.generate(
-                TokensPrompt(prompt_token_ids=prompt), 
+                TokensPrompt(prompt_token_ids=prompt),
                 VllmSamplingParams(**asdict(sampling_param)),
                 use_tqdm=False,
             )[0].outputs[0].token_ids

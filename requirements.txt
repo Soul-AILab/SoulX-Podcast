@@ -5,10 +5,10 @@ s3tokenizer
 diffusers
 torch==2.7.1
 torchaudio==2.7.1
-triton>=3.0.0
+# triton>=3.0.0
 transformers==4.57.1
 accelerate==1.10.1
 onnxruntime
-onnxruntime-gpu
+# onnxruntime-gpu
 einops
 gradio
