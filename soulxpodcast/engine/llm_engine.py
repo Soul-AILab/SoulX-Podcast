@@ -19,6 +19,7 @@ except ImportError:
 
 from soulxpodcast.config import Config, SamplingParams
 from soulxpodcast.models.modules.sampler import _ras_sample_hf_engine
+from soulxpodcast.utils.device import get_best_device, get_llm_dtype
 
 class HFLLMEngine:
 
@@ -29,8 +30,12 @@ class HFLLMEngine:
         
         self.tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
         config.eos = config.hf_config.eos_token_id # speech eos token;
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.bfloat16, device_map=self.device)
+        self.device = get_best_device()
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model,
+            torch_dtype=get_llm_dtype(self.device),
+        ).to(self.device)
+        self.model.eval()
         self.config = config
         self.pad_token_id = self.tokenizer.pad_token_id
 
@@ -85,7 +90,9 @@ class VLLMEngine:
         
         self.tokenizer = AutoTokenizer.from_pretrained(config.model, use_fast=True)
         config.eos = config.hf_config.eos_token_id # speech eos token;
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.device = get_best_device()
+        if self.device.type != "cuda":
+            raise RuntimeError("vLLM currently requires a CUDA device.")
         os.environ["VLLM_USE_V1"] = "0"
         if SUPPORT_VLLM:
             self.model = LLM(model=model, enforce_eager=True, dtype="bfloat16", max_model_len=8192, enable_prefix_caching=True,)

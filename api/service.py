@@ -75,7 +75,9 @@ class SoulXPodcastService:
             )
             self.config = model_config
 
-            logger.info(f"Model loaded successfully with {api_config.llm_engine} engine!")
+            logger.info(
+                f"Model loaded successfully with {api_config.llm_engine} engine on {self.model.device}!"
+            )
 
         except Exception as e:
             logger.error(f"Failed to load model: {e}")

@@ -31,6 +31,7 @@ from api.utils import (
     validate_dialogue_format,
     cleanup_old_files,
 )
+from soulxpodcast.utils.device import get_best_device
 
 # 配置日志
 logging.basicConfig(
@@ -127,11 +128,13 @@ async def health_check():
     """健康检查"""
     service = get_service()
     task_manager = get_task_manager()
+    device = get_best_device()
 
     return HealthResponse(
         status="healthy",
         model_loaded=service.is_loaded(),
-        gpu_available=torch.cuda.is_available(),
+        gpu_available=device.type in {"cuda", "mps"},
+        accelerator=device.type,
         llm_engine=config.llm_engine,
         active_tasks=task_manager.get_active_task_count(),
         version="1.0.0"

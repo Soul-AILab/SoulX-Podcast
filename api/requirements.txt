@@ -11,3 +11,4 @@ scipy>=1.11.0
 
 # Logging and utilities
 aiofiles>=23.2.0
+requests>=2.31.0

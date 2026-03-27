@@ -16,13 +16,15 @@ from soulxpodcast.engine.llm_engine import (
 )
 from soulxpodcast.models.modules.flow import CausalMaskedDiffWithXvec
 from soulxpodcast.models.modules.hifigan import HiFTGenerator
+from soulxpodcast.utils.device import get_amp_context, get_best_device
 
 class SoulXPodcast(torch.nn.Module):
     def __init__(self, config: Config = None):
         super().__init__()
         self.config = Config() if config is None else config
+        self.device = get_best_device()
 
-        self.audio_tokenizer = s3tokenizer.load_model("speech_tokenizer_v2_25hz").cuda().eval()
+        self.audio_tokenizer = s3tokenizer.load_model("speech_tokenizer_v2_25hz").to(self.device).eval()
         if self.config.llm_engine == "hf":
             self.llm = HFLLMEngine(**self.config.__dict__)
         elif self.config.llm_engine == "vllm":
@@ -38,12 +40,12 @@ class SoulXPodcast(torch.nn.Module):
             tqdm.write(f"[{timestamp}] - [INFO] - Casting flow to fp16")
             self.flow.half()
         self.flow.load_state_dict(torch.load(f"{self.config.model}/flow.pt", map_location="cpu", weights_only=True), strict=True)
-        self.flow.cuda().eval()
+        self.flow.to(self.device).eval()
 
         self.hift = HiFTGenerator()
         hift_state_dict = {k.replace('generator.', ''): v for k, v in torch.load(f"{self.config.model}/hift.pt", map_location="cpu", weights_only=True).items()}
         self.hift.load_state_dict(hift_state_dict, strict=True)
-        self.hift.cuda().eval()
+        self.hift.to(self.device).eval()
 
     
     @torch.inference_mode()
@@ -66,7 +68,7 @@ class SoulXPodcast(torch.nn.Module):
 
         # Audio tokenization
         prompt_speech_tokens_ori, prompt_speech_tokens_lens_ori = self.audio_tokenizer.quantize(
-            prompt_mels_for_llm.cuda(), prompt_mels_lens_for_llm.cuda()
+            prompt_mels_for_llm.to(self.device), prompt_mels_lens_for_llm.to(self.device)
         )
 
         # align speech token with speech feat as to reduce
@@ -81,10 +83,11 @@ class SoulXPodcast(torch.nn.Module):
             prompt_mel_len = prompt_mel.shape[0]
             if prompt_speech_token_len * 2 > prompt_mel_len:
                 prompt_speech_token = prompt_speech_token[:int(prompt_mel_len/2)]
-                prompt_mel_len = torch.tensor([prompt_mel_len]).cuda()
+                prompt_mel = prompt_mel.detach().clone().to(self.device)
+                prompt_mel_len = torch.tensor([prompt_mel_len], device=self.device)
             else:
-                prompt_mel = prompt_mel.detach().clone()[:prompt_speech_token_len * 2].cuda()
-                prompt_mel_len = torch.tensor([prompt_speech_token_len * 2]).cuda()
+                prompt_mel = prompt_mel.detach().clone()[:prompt_speech_token_len * 2].to(self.device)
+                prompt_mel_len = torch.tensor([prompt_speech_token_len * 2], device=self.device)
             prompt_speech_tokens.append(prompt_speech_token)
             prompt_mels_for_flow.append(prompt_mel)
             prompt_mels_lens_for_flow.append(prompt_mel_len)
@@ -141,8 +144,8 @@ class SoulXPodcast(torch.nn.Module):
             turn_spk = spk_ids[i]
             generated_speech_tokens = [token - self.config.hf_config.speech_token_offset for token in  llm_outputs['token_ids'][:-1]]  # ignore last eos
             prompt_speech_token = prompt_speech_tokens[turn_spk].tolist()
-            flow_input = torch.tensor([prompt_speech_token + generated_speech_tokens])
-            flow_inputs_len = torch.tensor([len(prompt_speech_token) + len(generated_speech_tokens)])
+            flow_input = torch.tensor([prompt_speech_token + generated_speech_tokens], device=self.device)
+            flow_inputs_len = torch.tensor([len(prompt_speech_token) + len(generated_speech_tokens)], device=self.device)
 
             # Flow generation and HiFi-GAN generation            
             start_idx = spk_ids[i]
@@ -151,10 +154,10 @@ class SoulXPodcast(torch.nn.Module):
             spk_emb = spk_emb_for_flow[start_idx:start_idx+1]
 
             # Flow generation
-            with torch.amp.autocast("cuda", dtype=torch.float16 if self.config.hf_config.fp16_flow else torch.float32):
+            with get_amp_context(self.device, enabled=self.config.hf_config.fp16_flow):
                 generated_mels, generated_mels_lens = self.flow(
-                    flow_input.cuda(), flow_inputs_len.cuda(),
-                    prompt_mels, prompt_mels_lens, spk_emb.cuda(),
+                    flow_input, flow_inputs_len,
+                    prompt_mels, prompt_mels_lens, spk_emb.to(self.device),
                     streaming=False, finalize=True
                 )
 
