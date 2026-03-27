@@ -103,7 +103,8 @@ class HealthResponse(BaseModel):
     """健康检查响应"""
     status: str = Field(default="healthy", description="服务状态")
     model_loaded: bool = Field(..., description="模型是否已加载")
-    gpu_available: bool = Field(..., description="GPU是否可用")
+    gpu_available: bool = Field(..., description="是否存在可用的硬件加速后端（CUDA/MPS）")
+    accelerator: str = Field(..., description="当前使用的加速后端（cuda/mps/cpu）")
     llm_engine: str = Field(..., description="当前使用的LLM引擎 (hf/vllm)")
     active_tasks: int = Field(default=0, description="正在处理的任务数")
     version: str = Field(default="1.0.0", description="API版本")
