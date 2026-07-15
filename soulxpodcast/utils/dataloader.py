@@ -16,7 +16,12 @@ from soulxpodcast.utils.audio import mel_spectrogram, audio_volume_normalize
 from soulxpodcast.config import Config, SamplingParams
 
 
-SPK_DICT = ["<|SPEAKER_0|>", "<|SPEAKER_1|>", "<|SPEAKER_2|>", "<|SPEAKER_3|>",]
+# 支持最多10个说话人（与 MAX_SPEAKERS 保持一致）
+SPK_DICT = [
+    "<|SPEAKER_0|>", "<|SPEAKER_1|>", "<|SPEAKER_2|>", "<|SPEAKER_3|>",
+    "<|SPEAKER_4|>", "<|SPEAKER_5|>", "<|SPEAKER_6|>", "<|SPEAKER_7|>",
+    "<|SPEAKER_8|>", "<|SPEAKER_9|>",
+]
 TEXT_START, TEXT_END, AUDIO_START = "<|text_start|>", "<|text_end|>", "<|semantic_token_start|>" 
 TASK_PODCAST = "<|task_podcast|>"
 
@@ -117,12 +122,22 @@ class PodcastDataset(Dataset):
                 
                 # 4. feature for llm
                 prompt_text = normalize_text(prompt_text) # remove some space and strange character
+                # 检查 spk_idx 是否在 SPK_DICT 范围内
+                if spk_idx >= len(SPK_DICT):
+                    raise ValueError(f"说话人索引 {spk_idx} 超出范围，SPK_DICT 只支持 {len(SPK_DICT)} 个说话人（索引 0-{len(SPK_DICT)-1}）")
                 prompt_text = f"{SPK_DICT[spk_idx]}{TEXT_START}{prompt_text}{TEXT_END}{AUDIO_START}"
                 if spk_idx == 0:
                     prompt_text = f"{TASK_PODCAST}{prompt_text}"
                 prompt_text_ids = self.text_tokenizer.encode(prompt_text)
                 prompt_text_ids_list.append(prompt_text_ids)
                 if use_dialect_prompt:
+                    # 检查 dialect_prompt_text 列表长度是否足够
+                    if "dialect_prompt_text" not in data or not isinstance(data["dialect_prompt_text"], list):
+                        raise ValueError(f"dialect_prompt_text 不存在或不是列表，但 use_dialect_prompt=True")
+                    if spk_idx >= len(data["dialect_prompt_text"]):
+                        raise ValueError(f"dialect_prompt_text 列表长度不足: 需要索引 {spk_idx}，但列表长度只有 {len(data.get('dialect_prompt_text', []))}")
+                    if spk_idx >= len(SPK_DICT):
+                        raise ValueError(f"说话人索引 {spk_idx} 超出范围，SPK_DICT 只支持 {len(SPK_DICT)} 个说话人（索引 0-{len(SPK_DICT)-1}）")
                     dialect_prompt_text = normalize_text(data["dialect_prompt_text"][spk_idx])
                     dialect_prompt_text = f"{SPK_DICT[spk_idx]}{TEXT_START}{dialect_prompt_text}{TEXT_END}{AUDIO_START}"
                     dialect_prompt_text_ids = self.text_tokenizer.encode(dialect_prompt_text)
@@ -151,6 +166,9 @@ class PodcastDataset(Dataset):
             for text, spk in zip(data["text"], data["spk"]):
                 # 4. feature for llm
                 text = normalize_text(text)
+                # 检查 spk 是否在 SPK_DICT 范围内
+                if spk >= len(SPK_DICT):
+                    raise ValueError(f"说话人索引 {spk} 超出范围，SPK_DICT 只支持 {len(SPK_DICT)} 个说话人（索引 0-{len(SPK_DICT)-1}）")
                 text = f"{SPK_DICT[spk]}{TEXT_START}{text}{TEXT_END}{AUDIO_START}"
                 text_ids = self.text_tokenizer.encode(text)
 

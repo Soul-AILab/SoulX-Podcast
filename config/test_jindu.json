@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "export_time": "2025-12-14 17:15:44",
+  "language": "zh",
+  "num_speakers": 7,
+  "num_text_inputs": 2,
+  "seed": 1988,
+  "diff_spk_pause_ms": 0,
+  "speakers": [
+    {
+      "prompt_audio": "/tmp/gradio/f2b287e0f747cdb9ea8ca421132c3518baba630ab72febb6f12cf25d43dfb66f/米小圈1.mp3",
+      "prompt_text": "这把钥匙一定很重要，失主到现在一定很着急。我按照字条上的地址来到一座山上，失主叔叔看到我把小盒子给他送回来高兴的都快哭了",
+      "dialect_prompt_text": "",
+      "remark": "米小圈"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/9465bec06a6985197897d551638386080106fec488a16ce293cb3645fe3aa8b3/佩奇1 - 如果要骑到南瓜那儿那我们一定要非常小心千万不可以撞上去.mp3",
+      "prompt_text": "如果要骑到南瓜那儿，那我们一定要非常小心，千万不可以撞上去！",
+      "dialect_prompt_text": "",
+      "remark": "佩奇"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/bf2dfc2b4940b4a9a565e980f6313e424a9f189cbda7905a26b1be0e1bd3858f/敖丙1.mp3",
+      "prompt_text": "五年多了，再次登台肯定还是有点儿，你不紧张吗？",
+      "dialect_prompt_text": "",
+      "remark": "敖丙"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/a3065ccdb99a5cdefc540d8d2799478c75b684820dc8e37a7baeb8a79f7fee61/Amy1.mp3",
+      "prompt_text": "We're from the UK.\nWe're twins.",
+      "dialect_prompt_text": "",
+      "remark": "Amy"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/02f81d423e5c2be7fafe5585692cd7407cdf7880fd8506556604c31e6806c17b/sam1.mp3",
+      "prompt_text": "Hi, everyone. I'm Sam.\nI'm nine.\nShe's Amy.\nShe's nine, too.",
+      "dialect_prompt_text": "",
+      "remark": "Sam"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/435d41f664ea91565eb2a4531f168b99cd0e2123d9783051ac110f6176a0fdbe/daming1.mp3",
+      "prompt_text": "Sam, this is my dad.\nThis is my grandpa.\nThat is my grandma.\nBut who is that?\nOh, this is my grandma.",
+      "dialect_prompt_text": "",
+      "remark": "Ming"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/34aebf28bbf889b39dc10b44b63640fdf43542dc08195dd3a9fd1b8ca42a1f05/Lingling1.mp3",
+      "prompt_text": "Hi, Sam.\nHi, Amy.\nI'm Ling Ling.\nHe's Da Ming.",
+      "dialect_prompt_text": "",
+      "remark": "Ling"
+    }
+  ],
+  "text_inputs": [
+    "[S1] 一 <|pause:60|> 听力测试（共四节，满分60分）<|pause:200|>",
+    "[S2] 一 <|pause:60|> 听力测试（共四节，满分60分）<|pause:200|>"
+  ]
+}

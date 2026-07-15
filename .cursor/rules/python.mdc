@@ -1,0 +1,15 @@
+---
+alwaysApply: true
+---
+- 终端执行命令，优先使用bash。
+- 运行 python 命令前，需要 先 激活python环境：
+```python
+# 初始化 conda 环境
+source /root/anaconda3/etc/profile.d/conda.sh
+
+# 激活环境
+conda activate soulxpodcast
+
+# 进入项目目录
+cd /ygq/rag/workspace/my-Soul-Podcast/SoulX-Podcast
+```

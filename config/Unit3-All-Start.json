@@ -1,0 +1,66 @@
+{
+  "version": "1.0",
+  "export_time": "2025-12-15 02:43:45",
+  "language": "zh",
+  "num_speakers": 8,
+  "num_text_inputs": 4,
+  "seed": 1988,
+  "diff_spk_pause_ms": 0,
+  "task_pause_ms": 500,
+  "speakers": [
+    {
+      "prompt_audio": "/tmp/gradio/9465bec06a6985197897d551638386080106fec488a16ce293cb3645fe3aa8b3/佩奇1 - 如果要骑到南瓜那儿那我们一定要非常小心千万不可以撞上去.mp3",
+      "prompt_text": "如果要骑到南瓜那儿，那我们一定要非常小心，千万不可以撞上去！",
+      "dialect_prompt_text": "",
+      "remark": "佩奇"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/f2b287e0f747cdb9ea8ca421132c3518baba630ab72febb6f12cf25d43dfb66f/米小圈1.mp3",
+      "prompt_text": "这把钥匙一定很重要，失主到现在一定很着急。我按照字条上的地址来到一座山上，失主叔叔看到我把小盒子给他送回来高兴的都快哭了。",
+      "dialect_prompt_text": "",
+      "remark": "米小圈"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/bf2dfc2b4940b4a9a565e980f6313e424a9f189cbda7905a26b1be0e1bd3858f/敖丙1.mp3",
+      "prompt_text": "五年多了，再次登台肯定还是有点儿，你不紧张吗？",
+      "dialect_prompt_text": "",
+      "remark": "敖丙"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/cfa8200a4c305f043176b3d32a728d5944e8a91285f42fa90a4f1cbc1ecc3a09/Amy2.mp3",
+      "prompt_text": "It's my school bag.\nIt's a book.\nIt's a pen.\nNo, it isn't.\nIt's a pencil.\nIt's a ruler.\nWhat's that, Tom?",
+      "dialect_prompt_text": "",
+      "remark": "Amy"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/02f81d423e5c2be7fafe5585692cd7407cdf7880fd8506556604c31e6806c17b/sam1.mp3",
+      "prompt_text": "Hi, everyone. I'm Sam.\nI'm nine.\nShe's Amy.\nShe's nine, too.",
+      "dialect_prompt_text": "",
+      "remark": "Sam"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/435d41f664ea91565eb2a4531f168b99cd0e2123d9783051ac110f6176a0fdbe/daming1.mp3",
+      "prompt_text": "Sam, this is my dad.\nThis is my grandpa.\nThat is my grandma.\nBut who is that?\nOh, this is my grandma.",
+      "dialect_prompt_text": "",
+      "remark": "Ming"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/34aebf28bbf889b39dc10b44b63640fdf43542dc08195dd3a9fd1b8ca42a1f05/Lingling1.mp3",
+      "prompt_text": "Hi, Sam.\nHi, Amy.\nI'm Ling Ling.\nHe's Da Ming.",
+      "dialect_prompt_text": "",
+      "remark": "Ling"
+    },
+    {
+      "prompt_audio": "/tmp/gradio/ac1f22f4ca0a9d3474eff5fe1fb14b0a0428c9bf281b92268d57ac0951dc12f2/Bobo1.mp3",
+      "prompt_text": "I want a balloon too.\nIt's red.\nIt's yellow.\nIt's pink.\nIt's purple.\nIt's orange.",
+      "dialect_prompt_text": "",
+      "remark": "bobo"
+    }
+  ],
+  "text_inputs": [
+    "[S1] 一 <|pause:600|> 听力测试（共四节，满分60分）<|pause:2000|>\n[S2] 第一节：<|pause:600|>判断正误。（共10小题；每小题2分，满分20分）听录音，判断录音内容与下列图片是否一致？一致的请填“T”，不一致的请填“F”。每道题读三遍。<|pause:2000|>\n[S6] one, <|pause:1200|> N <|pause:1800|> N <|pause:1800|> N <|pause:2000|>\n[S4] two, <|pause:1200|> Let's see. <|pause:1800|> Let's see. <|pause:1800|> Let's see.<|pause:2000|>\n[S4] three, <|pause:1200|> Look at my umbrella. <|pause:1800|> Look at my umbrella. <|pause:1800|> Look at my umbrella.<|pause:2000|>\n[S4] four, <|pause:1200|> I want balloons. <|pause:1800|> I want balloons. <|pause:1800|> I want balloons.<|pause:2000|>\n[S4] five, <|pause:1200|> It's an orange orange. <|pause:1800|> It's an orange orange. <|pause:1800|> It's an orange orange.<|pause:2000|>\n[S4] six, <|pause:1200|> The rainbow is colourful! <|pause:1800|> The rainbow is colourful! <|pause:1800|> The rainbow is colourful!<|pause:2000|>\n[S4] seven, <|pause:1200|> Today is National Day. <|pause:1800|> Today is National Day. <|pause:1800|> Today is National Day.<|pause:2000|>\n[S4] eight, <|pause:1200|> So many colours! <|pause:1800|> So many colours! <|pause:1800|> So many colours!<|pause:2000|>\n[S4] nine, <|pause:1200|> What colours can you see? <|pause:1200|> [S5] I can see black and white.<|pause:1800|>[S4] What colours can you see? <|pause:1200|> [S5] I can see black and white.<|pause:1800|>[S4] What colours can you see? <|pause:1200|> [S5] I can see black and white.<|pause:2000|>\n[S4] ten, <|pause:1200|> Look! It's red now. <|pause:1800|> Look! It's red now. <|pause:1800|> Look! It's red now.<|pause:2000|>",
+    "[S3] 第二节：<|pause:600|>听音选图. （共10小题；每小题2分，满分20分）听录音，根据录音内容选择正确的图片。每道题读三遍。<|pause:2000|>\n[S6] eleven, <|pause:1200|> K <|pause:1800|> K <|pause:1800|> K <|pause:2000|>\n[S5] twelve, <|pause:1200|> What colour is it? <|pause:1200|> [S6] It's purple.<|pause:1800|>[S5] What colour is it? <|pause:1200|> [S6] It's purple.<|pause:1800|>[S5] What colour is it? <|pause:1200|> [S6] It's purple.<|pause:2000|>\n[S5] thirteen, <|pause:1200|> Let's come and paint. <|pause:1800|> Let's come and paint. <|pause:1800|> Let's come and paint.<|pause:2000|>\n[S5] fourteen, <|pause:1200|> It's green and red. <|pause:1800|> It's green and red. <|pause:1800|> It's green and red.<|pause:2000|>\n[S5] fifteen, <|pause:1200|> This is a colourful picture for the happy national day! <|pause:1800|> This is a colourful picture for the happy national day! <|pause:1800|> This is a colourful picture for the happy national day!<|pause:2000|>\n[S5] sixteen, <|pause:1200|> It's a picture. <|pause:1800|> It's a picture. <|pause:1800|> It's a picture.<|pause:2000|>\n[S5] seventeen, <|pause:1200|> Bobo is the first. <|pause:1800|> Bobo is the first. <|pause:1800|> Bobo is the first.<|pause:2000|>\n[S5] eighteen, <|pause:1200|> You are right. <|pause:1800|> You are right. <|pause:1800|> You are right.<|pause:2000|>\n[S5] nineteen, <|pause:1200|> What colours can you see? <|pause:1200|> [S7] I can see pink, red and green.<|pause:1800|>[S5] What colours can you see? <|pause:1200|> [S7] I can see pink, red and green.<|pause:1800|>[S5] What colours can you see? <|pause:1200|> [S7] I can see pink, red and green.<|pause:2000|>\n[S6] twenty, <|pause:1200|> L <|pause:1800|> L <|pause:1800|> L <|pause:2000|>",
+    "[S2] 第三节：<|pause:600|>听音选词. （共10小题；每小题1分，满分10分）听录音，根据录音内容选择正确的单词。每道题读三遍。<|pause:2000|>\n[S6] twenty one, <|pause:1200|> KMH <|pause:1800|> KMH <|pause:1800|> KMH <|pause:2000|>\n[S6] twenty two, <|pause:1200|> want <|pause:1800|> want <|pause:1800|> want <|pause:2000|>\n[S6] twenty three, <|pause:1200|> blue <|pause:1800|> blue <|pause:1800|> blue <|pause:2000|>\n[S6] twenty four, <|pause:1200|> purple <|pause:1800|> purple <|pause:1800|> purple <|pause:2000|>\n[S6] twenty five, <|pause:1200|> can <|pause:1800|> can <|pause:1800|> can <|pause:2000|>\n[S6] twenty six, <|pause:1200|> red <|pause:1800|> red <|pause:1800|> red <|pause:2000|>\n[S6] twenty seven, <|pause:1200|> world <|pause:1800|> world <|pause:1800|> world <|pause:2000|>\n[S6] twenty eight, <|pause:1200|> magical <|pause:1800|> magical <|pause:1800|> magical <|pause:2000|>\n[S6] twenty nine, <|pause:1200|> today <|pause:1800|> today <|pause:1800|> today <|pause:2000|>\n[S6] thirty, <|pause:1200|> fun <|pause:1800|> fun <|pause:1800|> fun <|pause:2000|>",
+    "[S3] 第四节：<|pause:600|> 听音辩句。（共10小题；每小题1分，满分10分）听录音，根据录音内容选出相应的句子。每道题读三遍。<|pause:2000|>\n[S7] thirty one, <|pause:1200|> Yellow and blue make green. <|pause:1800|> Yellow and blue make green. <|pause:1800|> Yellow and blue make green.<|pause:2000|>\n[S7] thirty two, <|pause:1200|> Red, yellow and blue make black. <|pause:1800|> Red, yellow and blue make black. <|pause:1800|> Red, yellow and blue make black.<|pause:2000|>\n[S7] thirty three, <|pause:1200|> Look at our clothes. <|pause:1800|> Look at our clothes. <|pause:1800|> Look at our clothes.<|pause:2000|>\n[S7] thirty four, <|pause:1200|> I'm yellow. <|pause:1800|> I'm yellow. <|pause:1800|> I'm yellow.<|pause:2000|>\n[S7] thirty five, <|pause:1200|> Come back. <|pause:1800|> Come back. <|pause:1800|> Come back.<|pause:2000|>\n[S7] thirty six, <|pause:1200|> What colour is it? <|pause:1800|> What colour is it? <|pause:1800|> What colour is it?<|pause:2000|>\n[S7] thirty seven, <|pause:1200|> It's a colourful world. <|pause:1800|> It's a colourful world. <|pause:1800|> It's a colourful world.<|pause:2000|>\n[S7] thirty eight, <|pause:1200|> This is fun <|pause:1800|> This is fun <|pause:1800|> This is fun <|pause:2000|>\n[S7] thirty nine, <|pause:1200|> I want a blue bag. <|pause:1800|> I want a blue bag. <|pause:1800|> I want a blue bag.<|pause:2000|>\n[S7] forty, <|pause:1200|> You are right. <|pause:1800|> You are right. <|pause:1800|> You are right.<|pause:2000|>"
+  ]
+}
