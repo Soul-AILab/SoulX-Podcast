@@ -60,6 +60,12 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=1988, help="Random seed")
     args = parser.parse_args()
 
+    target_text = args.text
+    if os.path.isfile(target_text):
+        print(f"[INFO] Reading text from file: {target_text}")
+        with open(target_text, "r", encoding="utf-8") as f:
+            target_text = f.read()
+
     data = {
         "speakers":{
             "S1":{
@@ -69,7 +75,7 @@ if __name__ == "__main__":
             }
         },
         "text": [
-            ["S1", args.text]
+            ["S1", target_text]
         ]
     }
     inputs = podcast_format_parser(data)

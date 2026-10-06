@@ -180,6 +180,35 @@ python3 webui.py --model_path pretrained_models/SoulX-Podcast-1.7B-dialect
 
 ```
 
+### Colab-compatible segmented WebUI
+
+This repository now includes a Colab-friendly GUI entry point with:
+- script editing
+- automatic sentence/chunk splitting (complete sentences, bounded chunk duration)
+- chunked generation + full-audio assembly
+- sentence-level correction with selective regeneration and re-assembly
+- downloadable final audio and segment manifest JSON
+
+Run in Google Colab with the exact setup below:
+
+```python
+!git clone https://github.com/JerryLee36/SoulX-Podcast
+!cd SoulX-Podcast && pip install -r requirements.txt && pip install huggingface_hub==0.34.0
+!hf download Soul-AILab/SoulX-Podcast-1.7B --local-dir SoulX-Podcast/pretrained_models/SoulX-Podcast-1.7B
+!hf download Soul-AILab/SoulX-Podcast-1.7B-dialect --local-dir SoulX-Podcast/pretrained_models/SoulX-Podcast-1.7B-dialect
+!pip uninstall -y torch torchvision
+!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+```
+
+Then launch:
+
+```python
+%cd SoulX-Podcast
+!python colab_webui.py --model_path pretrained_models/SoulX-Podcast-1.7B --share
+# dialect model:
+# !python colab_webui.py --model_path pretrained_models/SoulX-Podcast-1.7B-dialect --share
+```
+
 
 ## TODOs
 - [x] Add example scripts for monologue TTS.
